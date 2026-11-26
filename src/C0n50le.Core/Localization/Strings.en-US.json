@@ -18,7 +18,7 @@
   "EmptyTitle": "Your library",
   "EmptyBody": "Add a game, or pick the folder to import from in System → Library. Steam and Epic are read on their own.",
   "SourceFolder": "Games folder",
-  "SourceManual": "Added by hand",
+  "SourceManual": "Library",
   "AddGame": "Add a game",
   "AddGameBody": "Pick an executable: a game, an emulator or an app.",
   "SystemCardBody": "Library, screen, controls, look, start and updates.",

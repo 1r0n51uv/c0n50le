@@ -138,11 +138,12 @@
                             <TextBlock x:Name="SystemTitle" FontSize="58" FontWeight="Bold" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextBrush}"/>
                         </StackPanel>
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Hidden" IsTabStop="False">
+                        <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden" IsTabStop="False">
                             <StackPanel x:Name="Categories" Spacing="6" Padding="4,8,24,8"/>
                         </ScrollViewer>
                     </Grid>
-                    <Grid Grid.Column="1" RowSpacing="20" MaxWidth="1100" HorizontalAlignment="Left">
+                    <Grid Grid.Column="1" RowSpacing="20">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
@@ -150,7 +151,8 @@
                         </Grid.RowDefinitions>
                         <TextBlock x:Name="CategoryTitle" FontSize="38" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"
                                    Margin="20,10,0,0" Height="56"/>
-                        <ScrollViewer x:Name="RowsScroll" Grid.Row="1" VerticalScrollBarVisibility="Hidden" IsTabStop="False">
+                        <ScrollViewer x:Name="RowsScroll" Grid.Row="1" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                                      BringIntoViewOnFocusChange="False" VerticalScrollBarVisibility="Hidden" IsTabStop="False">
                             <StackPanel x:Name="Rows" Spacing="4" Padding="8,8,24,24"/>
                         </ScrollViewer>
                         <TextBlock x:Name="RowFooter" Grid.Row="2" Style="{StaticResource Caption}" TextWrapping="Wrap" MaxLines="3"
