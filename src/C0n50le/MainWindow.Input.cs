@@ -242,13 +242,13 @@ public sealed partial class MainWindow
     {
         if (_cursorHidden || !IsForeground) return;
         _cursorHidden = true;
-        NativeWindows.ShowCursor(false);
+        Root.SetCursorHidden(true);
     }
 
     private void RestoreCursor()
     {
         if (!_cursorHidden) return;
         _cursorHidden = false;
-        NativeWindows.ShowCursor(true);
+        Root.SetCursorHidden(false);
     }
 }

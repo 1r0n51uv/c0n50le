@@ -132,7 +132,6 @@ internal static class NativeWindows
     [DllImport("user32.dll")] public static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(nint hwnd, nint process);
     [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint from, uint to, bool attach);
-    [DllImport("user32.dll")] public static extern int ShowCursor(bool show);
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
     [DllImport("kernel32.dll")] private static extern nint CreateToolhelp32Snapshot(uint flags, uint pid);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)] private static extern bool Process32FirstW(nint snapshot, ref ProcessEntry entry);
