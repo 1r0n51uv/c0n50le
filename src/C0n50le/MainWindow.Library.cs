@@ -309,8 +309,6 @@ public sealed partial class MainWindow
         Home.HeroTitle = title;
         Home.HeroDetails = "";
         Home.HeroDescription = description;
-        Home.HeroDescriptionUri = null;
-        Home.HeroDescriptionSource = "";
         Motion.Entrance(Hero, _prefs.ReduceMotion);
     }
 
@@ -362,8 +360,6 @@ public sealed partial class MainWindow
 
     private void RefreshDescription(Game? game)
     {
-        Home.HeroDescriptionUri = null;
-        Home.HeroDescriptionSource = "";
         Home.HeroDescription = game is null ? Strings.Get("EmptyBody") : "";
         if (game is null) return;
         var art = _prefs.ArtFor(game);
@@ -373,9 +369,6 @@ public sealed partial class MainWindow
         if (art.Descriptions.TryGetValue(key, out var cached))
         {
             Home.HeroDescription = cached.Text;
-            Home.HeroDescriptionSource = cached.SourceName;
-            if (Uri.TryCreate(cached.SourceUrl, UriKind.Absolute, out var uri) && uri.Scheme == "https")
-                Home.HeroDescriptionUri = uri;
             return;
         }
         if (language == Strings.English && art.IsMatched) Home.HeroDescription = art.Description;

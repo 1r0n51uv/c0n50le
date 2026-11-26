@@ -19,6 +19,7 @@
   "EmptyBody": "Aggiungi un gioco o scegli in Sistema → Libreria la cartella da cui importarli. Steam ed Epic vengono letti da soli.",
   "SourceFolder": "Cartella giochi",
   "SourceManual": "Libreria",
+  "DescriptionCredits": "Crediti della descrizione",
   "AddGame": "Aggiungi un gioco",
   "AddGameBody": "Scegli un eseguibile: un gioco, un emulatore o un'app.",
   "SystemCardBody": "Libreria, schermo, comandi, aspetto, avvio e aggiornamenti.",

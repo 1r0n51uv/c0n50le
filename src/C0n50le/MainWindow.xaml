@@ -60,10 +60,6 @@
                             <TextBlock Text="{x:Bind Home.HeroDescription, Mode=OneWay}" Visibility="{x:Bind Home.HasHeroDescription, Mode=OneWay}" FontSize="29" FontWeight="Medium" LineHeight="36"
                                        LineStackingStrategy="BlockLineHeight" TextWrapping="Wrap" MaxLines="3" MaxWidth="900"
                                        HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextBrush}"/>
-                            <HyperlinkButton Content="{x:Bind Home.HeroDescriptionSource, Mode=OneWay}"
-                                             NavigateUri="{x:Bind Home.HeroDescriptionUri, Mode=OneWay}"
-                                             Visibility="{x:Bind Home.HasDescriptionSource, Mode=OneWay}"
-                                             FontSize="18" Padding="0" HorizontalAlignment="Left"/>
                             <StackPanel Orientation="Horizontal" Spacing="12" Visibility="{x:Bind Home.IsRunning, Mode=OneWay}">
                                 <Ellipse Width="12" Height="12" Fill="{StaticResource TextBrush}" VerticalAlignment="Center"/>
                                 <TextBlock Text="{x:Bind Home.HeroStatus, Mode=OneWay}" FontSize="25" FontWeight="SemiBold"
