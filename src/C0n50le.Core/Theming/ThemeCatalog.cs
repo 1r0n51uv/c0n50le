@@ -71,13 +71,13 @@ public static class ThemeCatalog
     public static ThemeTokens Get(string? id, GlassDepth glass) =>
         Normalize(id) == LightId ? Light(glass) : Dark(glass);
 
-    /// <summary>The material's alpha for each depth: opaque when off, the kit's 50% at medium.</summary>
+    /// <summary>Material opacity decreases as the glass effect deepens.</summary>
     internal static byte MaterialAlpha(GlassDepth glass) => glass switch
     {
         GlassDepth.Off => 0xF5,
-        GlassDepth.Subtle => 0xB3,
-        GlassDepth.Medium => 0x80,
-        _ => 0x52
+        GlassDepth.Subtle => 0xA6,
+        GlassDepth.Medium => 0x70,
+        _ => 0x42
     };
 
     private static double Sheen(GlassDepth glass) => glass switch
@@ -91,9 +91,9 @@ public static class ThemeCatalog
     private static double Tint(GlassDepth glass) => glass switch
     {
         GlassDepth.Off => 1,
-        GlassDepth.Subtle => 0.78,
-        GlassDepth.Medium => 0.55,
-        _ => 0.32
+        GlassDepth.Subtle => 0.70,
+        GlassDepth.Medium => 0.45,
+        _ => 0.23
     };
 
     public static ThemeTokens Dark(GlassDepth glass) => new()

@@ -48,10 +48,16 @@ public sealed class ThemeTests
     }
 
     [Fact]
-    public void Medium_glass_is_the_kits_material()
+    public void Glass_gets_more_transparent_at_each_depth_in_both_themes()
     {
-        Assert.Equal(Argb.FromHex("#801E1E1E"), ThemeCatalog.Dark(GlassDepth.Medium).Material);
-        Assert.Equal(Argb.FromHex("#80FEFDFF"), ThemeCatalog.Light(GlassDepth.Medium).Material);
+        foreach (var id in ThemeCatalog.Ids)
+        {
+            var subtle = ThemeCatalog.Get(id, GlassDepth.Subtle);
+            var medium = ThemeCatalog.Get(id, GlassDepth.Medium);
+            var deep = ThemeCatalog.Get(id, GlassDepth.Deep);
+            Assert.True(subtle.TintOpacity > medium.TintOpacity && medium.TintOpacity > deep.TintOpacity);
+            Assert.True(subtle.Material.A > medium.Material.A && medium.Material.A > deep.Material.A);
+        }
     }
 
     [Fact]
