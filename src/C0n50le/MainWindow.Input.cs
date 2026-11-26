@@ -142,7 +142,7 @@ public sealed partial class MainWindow
         if (AlertOpen) { DismissAlert(); return; }
         if (TourVisible) { EndTour(); return; }
         if (MenuOpen) { CloseMenu(); return; }
-        if (SystemPage.Visibility == Visibility.Visible) { CloseSystem(); return; }
+        if (SystemPage.Visibility == Visibility.Visible) { GoBackInSystem(); return; }
         Sounds.Play(UiSound.Back);
         HideHome();
     }

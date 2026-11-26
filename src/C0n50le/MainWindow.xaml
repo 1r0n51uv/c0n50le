@@ -128,7 +128,8 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <StackPanel Orientation="Horizontal" Spacing="22">
-                            <Button x:Name="SystemBack" Style="{StaticResource TvIconButton}" Click="OnSystemBackClick" VerticalAlignment="Center">
+                            <Button x:Name="SystemBack" Style="{StaticResource TvIconButton}" Click="OnSystemBackClick"
+                                    AllowFocusOnInteraction="False" VerticalAlignment="Center">
                                 <FontIcon Glyph="&#xE72B;" FontSize="24"/>
                             </Button>
                             <TextBlock x:Name="SystemTitle" FontSize="58" FontWeight="Bold" VerticalAlignment="Center"
