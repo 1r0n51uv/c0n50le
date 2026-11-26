@@ -68,15 +68,6 @@ public sealed partial class MainWindow
         fade.Duration = TimeSpan.FromMilliseconds(900);
         word.StartAnimation("Opacity", fade);
 
-        var bar = ElementCompositionPreview.GetElementVisual(IntroBar);
-        IntroBar.Width = 260;
-        bar.CenterPoint = new Vector3(130, 4, 0);
-        var grow = compositor.CreateVector3KeyFrameAnimation();
-        grow.InsertKeyFrame(0, new Vector3(0, 1, 1));
-        grow.InsertKeyFrame(0.45f, new Vector3(0, 1, 1));
-        grow.InsertKeyFrame(1, Vector3.One, ease);
-        grow.Duration = TimeSpan.FromMilliseconds(1500);
-        bar.StartAnimation("Scale", grow);
 
         var tagline = ElementCompositionPreview.GetElementVisual(IntroTagline);
         IntroTagline.Opacity = 1;
@@ -100,7 +91,7 @@ public sealed partial class MainWindow
     {
         if (TourVisible || (!force && _prefs.TourDone) || IntroVisible) return;
         if (SystemPage.Visibility == Visibility.Visible) CloseSystem();
-        ClosePicker(restoreFocus: false);
+        CloseMenu(restoreFocus: false);
         _tourIndex = 0;
         TourLayer.Visibility = Visibility.Visible;
         ShowTourStop();
@@ -122,8 +113,8 @@ public sealed partial class MainWindow
 
         FrameworkElement? target = stop switch
         {
-            TourStop.Library => CardsScroll,
-            TourStop.CardOptions => _cards.Count > 0 && _selected >= 0 ? _cards[_selected] : CardsScroll,
+            TourStop.Library => Dock,
+            TourStop.CardOptions => _selected >= 0 && _selected < _tiles.Count ? _tiles[_selected].Card : Dock,
             TourStop.System => SystemPill,
             _ => null
         };
@@ -137,25 +128,23 @@ public sealed partial class MainWindow
         else
         {
             var bounds = target.TransformToVisual(Stage).TransformBounds(new Windows.Foundation.Rect(0, 0, target.ActualWidth, target.ActualHeight));
-            const double pad = 12;
+            var pad = target == Dock ? 10 : 16;
             TourHighlight.Visibility = Visibility.Visible;
+            TourHighlight.CornerRadius = new CornerRadius(target == Dock ? 66 : target == SystemPill ? 48 : 40);
             Microsoft.UI.Xaml.Controls.Canvas.SetLeft(TourHighlight, bounds.X - pad);
             Microsoft.UI.Xaml.Controls.Canvas.SetTop(TourHighlight, bounds.Y - pad);
-            TourHighlight.Width = Math.Min(bounds.Width + 2 * pad, Stage.ActualWidth - bounds.X + pad);
+            TourHighlight.Width = bounds.Width + 2 * pad;
             TourHighlight.Height = bounds.Height + 2 * pad;
-            // The card sits beside what it points at, on the other half of the screen, never over the hero's text:
-            // under a target at the top, else at the right edge above the row of cards.
-            var targetAtTop = bounds.Y + bounds.Height / 2 < Stage.ActualHeight / 3;
-            var targetOnLeft = bounds.X + bounds.Width / 2 < Stage.ActualWidth / 2 || bounds.Width > Stage.ActualWidth * 0.6;
-            TourCard.HorizontalAlignment = targetAtTop
-                ? (targetOnLeft ? HorizontalAlignment.Left : HorizontalAlignment.Right)
-                : (targetOnLeft ? HorizontalAlignment.Right : HorizontalAlignment.Left);
+            // The alert sits above what it points at (the dock, a card), or under it at the top of the screen.
+            TourCard.Measure(new Windows.Foundation.Size(TourCard.Width, double.PositiveInfinity));
+            var height = TourCard.DesiredSize.Height;
+            var atTop = bounds.Y < Stage.ActualHeight / 3;
             TourCard.VerticalAlignment = VerticalAlignment.Top;
-            var top = targetAtTop ? bounds.Bottom + 40 : Math.Clamp(Math.Min(bounds.Y, CardsScroll.TransformToVisual(Stage)
-                .TransformPoint(new Windows.Foundation.Point(0, 0)).Y) - 360, 120, Math.Max(120, Stage.ActualHeight - 420));
-            TourCard.Margin = new Thickness(72, top, 72, 0);
+            TourCard.HorizontalAlignment = atTop ? HorizontalAlignment.Right : HorizontalAlignment.Center;
+            var top = atTop ? bounds.Bottom + 40 : Math.Max(40, bounds.Y - height - 50);
+            TourCard.Margin = atTop ? new Thickness(0, top, 90, 0) : new Thickness(0, top, 0, 0);
         }
-        TourNext.Focus(_input.Mode == InputMode.Controller ? FocusState.Keyboard : FocusState.Programmatic);
+        TourNext.Focus(FocusState.Keyboard);
         _tourTimer ??= CreateTourTimer();
         _tourTimer.Stop();
         _tourTimer.Interval = Tour.DwellTime(TourTitle.Text, TourBody.Text) + TimeSpan.FromSeconds(6);
@@ -215,7 +204,7 @@ public sealed partial class MainWindow
                 ShowToast(Strings.Format("UpdateAvailable", update.Tag));
                 if (!interactive) return;
             }
-            if (!await ConfirmAsync(Strings.Get("UpdateTitle"), Strings.Format("UpdateBody", update.Tag), Strings.Get("Install"))) return;
+            if (await AlertAsync(Strings.Get("UpdateTitle"), Strings.Format("UpdateBody", update.Tag), null, Strings.Get("Install"), Strings.Get("Cancel")) != 0) return;
             ShowToast(Strings.Get("Downloading"));
             await Updater.InstallAsync(update, _paths.Installed);
             ExitApp();

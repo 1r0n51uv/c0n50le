@@ -6,7 +6,6 @@ using C0n50le.Core.Localization;
 using C0n50le.Services;
 using C0n50le.Ui;
 using Microsoft.UI.Dispatching;
-using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -16,21 +15,26 @@ using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace C0n50le;
 
+/// <summary>One tile of the home: a game, or Add / Settings at the end.</summary>
+internal sealed record Tile(Button Card, Game? Game);
+
 public sealed partial class MainWindow
 {
-    private const double CardSize = 280;
-    private readonly Dictionary<Button, Button> _moreButtons = [];
-    private bool _tileFocused;
-    private readonly List<Button> _cards = [];
+    /// <summary>tvOS grows a focused card from 250×150 to 306×184.</summary>
+    private const float CardFocusScale = 1.224f;
+
+    private readonly List<Tile> _tiles = [];
     private readonly HashSet<string> _fetched = [];
+    private readonly DescriptionFinder _descriptions = new(Updater.CurrentVersion);
+    private readonly HashSet<string> _descriptionRequests = [];
+    private readonly CancellationTokenSource _descriptionLifetime = new();
     private List<Game> _games = [];
     private List<Game> _detected = [];
-    private Button? _addCard, _systemCard;
+    private Tile? _addTile, _systemTile;
     private int _selected = -1;
-    private bool _scanning;
+    private bool _scanning, _loadedOnce;
     private GameSession? _session;
-    private DispatcherQueueTimer? _sessionTimer, _hoverTimer;
-    private int _hoverIndex = -1;
+    private DispatcherQueueTimer? _sessionTimer;
     private CancellationTokenSource? _artworkLookup;
     private Image? _frontBackdrop;
     private string? _backdropPath;
@@ -43,17 +47,13 @@ public sealed partial class MainWindow
         _sessionTimer = DispatcherQueue.CreateTimer();
         _sessionTimer.Interval = TimeSpan.FromMilliseconds(750);
         _sessionTimer.Tick += (_, _) => PollSession();
-        _hoverTimer = DispatcherQueue.CreateTimer();
-        _hoverTimer.Interval = TimeSpan.FromMilliseconds(140);
-        _hoverTimer.IsRepeating = false;
-        _hoverTimer.Tick += (_, _) => Select(_hoverIndex, scroll: false);
-        foreach (var button in new[] { SystemPill, DesktopPill, SystemBack })
-            Motion.AddLift(button, 1.04);
         Motion.Reduce = _prefs.ReduceMotion;
         ElementCompositionPreview.GetElementVisual(Toast).Opacity = 0;
+        // The lifted card casts its tvOS shadow on the page behind it.
+        _shadow.Receivers.Add(ShelfFade);
     }
 
-    /// <summary>Scans the PC and rebuilds the row, keeping the selection.</summary>
+    /// <summary>Scans the PC and rebuilds the home, keeping the selection.</summary>
     private async Task LoadLibraryAsync(bool firstLoad = false, string? select = null)
     {
         if (_scanning) return;
@@ -85,171 +85,204 @@ public sealed partial class MainWindow
         finally { _scanning = false; }
     }
 
-    private bool _loadedOnce;
-
+    /// <summary>The dock: every game, the most recent first, then Add and Settings.</summary>
     private void RenderCards()
     {
-        if (Cards is null) return;
-        _hoverTimer?.Stop();
-        Cards.Children.Clear();
-        _cards.Clear();
-        _moreButtons.Clear();
+        if (DockRow is null) return;
+        DockRow.Children.Clear();
+        _tiles.Clear();
         for (var index = 0; index < _games.Count; index++)
         {
-            var position = index;
-            var card = new Button { Style = ThemeManager.Style("GameCard") };
-            Motion.AddLift(card, 1.06, lift: 10);
-            card.PointerEntered += (_, args) =>
-            {
-                if (args.Pointer.PointerDeviceType != PointerDeviceType.Mouse) return;
-                _hoverIndex = position;
-                _hoverTimer?.Start();
-            };
-            card.PointerExited += (_, _) =>
-            {
-                if (_hoverIndex == position) _hoverTimer?.Stop();
-            };
-            card.Click += (_, _) =>
-            {
-                _hoverTimer?.Stop();
-                Select(position);
-                StartOrResume();
-            };
-            card.RightTapped += (_, args) =>
-            {
-                Select(position);
-                OpenCardMenu(card);
-                args.Handled = true;
-            };
-            card.GotFocus += (_, _) => Select(position);
-            // The card's options open from a small ⋯ on the card itself (mouse), from Y (controller) or a right-click.
-            var more = new Button
-            {
-                Style = ThemeManager.Style("IconButton"), Width = 44, Height = 44, IsTabStop = false, AllowFocusOnInteraction = false,
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(200, 8, 10, 14)), Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
-                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12),
-                Content = new FontIcon { Glyph = "", FontSize = 18 }, Visibility = Visibility.Collapsed
-            };
-            AutomationProperties.SetName(more, Strings.Get("HintOptions"));
-            ToolTipService.SetToolTip(more, Strings.Get("HintOptions"));
-            more.Click += (_, _) =>
-            {
-                Select(position);
-                OpenCardMenu(card);
-            };
-            var frame = new Grid();
-            frame.Children.Add(new Grid());
-            frame.Children.Add(more);
-            card.Content = frame;
-            _moreButtons[card] = more;
-            _cards.Add(card);
-            Cards.Children.Add(card);
+            var tile = GameTile(index);
+            _tiles.Add(tile);
+            DockRow.Children.Add(Host(tile));
         }
-        _addCard = TileButton("", Strings.Get("AddGame"), async () => await AddGameAsync());
-        Cards.Children.Add(_addCard);
-        _systemCard = TileButton("", Strings.Get("System"), OpenSystem);
-        _systemCard.Visibility = _prefs.ShowSystemCard ? Visibility.Visible : Visibility.Collapsed;
-        Cards.Children.Add(_systemCard);
+        _addTile = ActionTile("", Strings.Get("AddGame"), Strings.Get("AddGameBody"), async () => await AddGameAsync());
+        _systemTile = ActionTile("", Strings.Get("System"), Strings.Get("SystemCardBody"), OpenSystem);
+        DockRow.Children.Add(Host(_addTile));
+        if (_prefs.ShowSystemCard) DockRow.Children.Add(Host(_systemTile));
         UpdateCards();
     }
 
-    /// <summary>The square cards at the end of the row: add a game, System.</summary>
-    private Button TileButton(string glyph, string label, Action action)
+    /// <summary>A card and the title that appears under it when focused, like tvOS.</summary>
+    private static Grid Host(Tile tile)
     {
-        var content = new StackPanel { Spacing = 16, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        content.Children.Add(new FontIcon { Glyph = glyph, FontSize = 40, Foreground = ThemeManager.Brush("AccentBrush") });
-        content.Children.Add(new TextBlock
-        {
-            Text = label, FontSize = 19, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.Wrap, MaxWidth = 150, Foreground = ThemeManager.Brush("TextBrush")
-        });
-        var button = new Button
-        {
-            Style = ThemeManager.Style("GameCard"), Background = ThemeManager.Brush("SurfaceBrush"),
-            Content = content, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center
-        };
-        AutomationProperties.SetName(button, label);
-        Motion.AddLift(button, 1.06, lift: 10);
-        button.Click += (_, _) => { Sounds.Play(UiSound.Confirm); action(); };
-        button.GotFocus += (_, _) =>
-        {
-            _hoverTimer?.Stop();
-            _tileFocused = true;
-            button.BorderBrush = ThemeManager.Brush("FocusBrush");
-            button.BorderThickness = new Thickness(3);
-            UpdateCards();
-        };
-        button.LostFocus += (_, _) =>
-        {
-            _tileFocused = false;
-            button.BorderThickness = new Thickness(0);
-            UpdateCards();
-        };
-        return button;
+        // A fixed slot: the card grows over it on focus without moving its neighbours.
+        var host = new Grid { Width = 250, Height = 150, VerticalAlignment = VerticalAlignment.Center };
+        host.Children.Add(tile.Card);
+        return host;
     }
 
-    /// <summary>Card sizes, pictures and the selection edge.</summary>
+    private Tile GameTile(int index)
+    {
+        var game = _games[index];
+        var card = new Button { Style = ThemeManager.Style("TvCard") };
+        var tile = new Tile(card, game);
+        AddFocusLift(tile);
+        card.Click += (_, _) =>
+        {
+            Select(index);
+            StartOrResume();
+        };
+        card.RightTapped += (_, args) =>
+        {
+            Select(index);
+            OpenCardMenu(card);
+            args.Handled = true;
+        };
+        card.GotFocus += (_, _) =>
+        {
+            Select(index);
+            BringRowIntoView(card);
+        };
+        return tile;
+    }
+
+    private Tile ActionTile(string glyph, string label, string description, Action action)
+    {
+        var card = new Button
+        {
+            Style = ThemeManager.Style("TvCard"), Background = ThemeManager.Brush("MaterialBrush"),
+            Content = new FontIcon { Glyph = glyph, FontSize = 52, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+        };
+        AutomationProperties.SetName(card, label);
+        var tile = new Tile(card, null);
+        AddFocusLift(tile);
+        card.Click += (_, _) => { Sounds.Play(UiSound.Confirm); action(); };
+        card.GotFocus += (_, _) =>
+        {
+            ShowActionHero(label, description);
+            BringRowIntoView(card);
+        };
+        return tile;
+    }
+
+    /// <summary>The tvOS focus on a card: it grows by 22% with a soft lifted shadow, and its title appears below.</summary>
+    private void AddFocusLift(Tile tile)
+    {
+        var card = tile.Card;
+        card.Shadow = _shadow;
+        void Update(bool focused)
+        {
+            var visual = ElementCompositionPreview.GetElementVisual(card);
+            visual.CenterPoint = new Vector3((float)card.Width / 2, (float)card.Height / 2, 0);
+            ElementCompositionPreview.SetIsTranslationEnabled(card, true);
+            var scale = focused ? CardFocusScale : 1f;
+            var lift = new Vector3(0, 0, focused ? 48 : 0);
+            if (!Motion.Enabled(Motion.Reduce))
+            {
+                visual.Scale = new Vector3(scale, scale, 1);
+                card.Translation = lift;
+            }
+            else
+            {
+                var spring = visual.Compositor.CreateSpringVector3Animation();
+                spring.FinalValue = new Vector3(scale, scale, 1);
+                spring.DampingRatio = 0.72f;
+                spring.Period = TimeSpan.FromMilliseconds(45);
+                visual.StartAnimation("Scale", spring);
+                card.Translation = lift;
+            }
+        }
+        card.GotFocus += (_, _) => Update(true);
+        card.LostFocus += (_, _) => Update(false);
+    }
+
+    private readonly ThemeShadow _shadow = new();
+
+    /// <summary>Keeps the focused card in view when the dock holds more than fits, sliding it towards the middle.</summary>
+    private void BringRowIntoView(FrameworkElement card)
+    {
+        if (card.Parent is not FrameworkElement host) return;
+        var viewport = DockScroll.ViewportWidth;
+        if (viewport <= 0) return;
+        // Where the card sits in the row, padding included, and room for its grown size and title on both sides.
+        var x = host.TransformToVisual(DockRow).TransformPoint(new Windows.Foundation.Point(0, 0)).X;
+        const double margin = 96;
+        var left = DockScroll.HorizontalOffset;
+        double? target = null;
+        if (x - margin < left) target = x - margin;
+        else if (x + host.ActualWidth + margin > left + viewport) target = x + host.ActualWidth + margin - viewport;
+        if (target is { } offset)
+            DockScroll.ChangeView(Math.Clamp(offset, 0, Math.Max(0, DockScroll.ScrollableWidth)), null, null, _prefs.ReduceMotion);
+    }
+
+    /// <summary>Pictures on the cards, and the running badge.</summary>
     private void UpdateCards()
     {
-        var edge = ThemeManager.Brush("FocusBrush");
-        for (var index = 0; index < _cards.Count; index++)
+        foreach (var tile in _tiles)
         {
-            var card = _cards[index];
-            var game = _games[index];
+            if (tile.Game is not { } game) continue;
             var art = _prefs.Art.GetValueOrDefault(game.Id);
             var title = LibraryOrder.DisplayTitle(game, art);
-            var hasCover = art is { HasCatalogMedia: true } && File.Exists(art.Card);
-            var selected = index == _selected && !_tileFocused;
-            card.BorderThickness = new Thickness(selected ? 3 : 0);
-            card.BorderBrush = selected ? edge : null;
-            card.Opacity = selected ? 1 : 0.86;
-            if (_moreButtons.TryGetValue(card, out var more))
-                more.Visibility = selected && _input.Mode == Core.Input.InputMode.MouseKeyboard ? Visibility.Visible : Visibility.Collapsed;
             var running = _session?.Game.Id == game.Id;
-            var path = hasCover ? art!.Card : "";
-            var key = (title, path, running);
-            AutomationProperties.SetName(card, title);
-            if (card.Tag is ValueTuple<string, string, bool> previous && previous == key) continue;
-            card.Tag = key;
-            if (card.Content is Grid frame && frame.Children.Count > 0) frame.Children[0] = CardContent(title, path, running);
+            AutomationProperties.SetName(tile.Card, title);
+            var key = (title, art?.Background ?? "", art?.Logo ?? "", art?.Banner ?? "", art?.Card ?? "", running);
+            if (tile.Card.Tag is ValueTuple<string, string, string, string, string, bool> previous && previous == key) continue;
+            tile.Card.Tag = key;
+            tile.Card.Content = CardContent(title, art, running);
         }
     }
 
-    private static Grid CardContent(string title, string cover, bool running)
+    /// <summary>
+    /// A wide card like a tvOS app icon: the game's background with its transparent logo on top; else its wide banner;
+    /// else its cover; else its name.
+    /// </summary>
+    private static Grid CardContent(string title, Artwork? art, bool running)
     {
-        var grid = new Grid();
-        Corners.SetSize(grid, CornerSize.Large);
-        // Square cards: the box art fills the square from the top, where the title usually is.
-        if (LoadImage(cover, 480) is { } image)
-            grid.Children.Add(new Image { Source = image, Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Top });
-        else
+        var grid = new Grid { CornerRadius = new CornerRadius(30) };
+        var media = art is { HasCatalogMedia: true } ? art : null;
+        if (LoadImage(media?.Background, 640) is { } background && File.Exists(media!.Logo))
         {
-            var placeholder = new StackPanel { Spacing = 18, VerticalAlignment = VerticalAlignment.Center, Padding = new Thickness(18, 0, 18, 0) };
-            placeholder.Children.Add(new FontIcon { Glyph = "", FontSize = 40, Foreground = ThemeManager.Brush("TextMutedBrush") });
-            placeholder.Children.Add(new TextBlock
+            grid.Children.Add(new Image { Source = background, Stretch = Stretch.UniformToFill });
+            grid.Children.Add(new Border { Background = new SolidColorBrush(Windows.UI.Color.FromArgb(60, 0, 0, 0)) });
+            grid.Children.Add(new Image
             {
-                Text = title, FontSize = 21, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextAlignment = TextAlignment.Center,
-                TextWrapping = TextWrapping.Wrap, MaxLines = 4, TextTrimming = TextTrimming.CharacterEllipsis,
-                Foreground = ThemeManager.Brush("TextBrush")
+                Source = LoadImage(media.Logo, 480), Stretch = Stretch.Uniform, Margin = new Thickness(26, 20, 26, 20),
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
             });
-            grid.Children.Add(placeholder);
         }
-        if (running)
+        else if (LoadImage(media?.Banner, 640) is { } banner)
+            grid.Children.Add(new Image { Source = banner, Stretch = Stretch.UniformToFill });
+        else if (LoadImage(media?.Card, 480) is { } cover)
+            grid.Children.Add(new Image { Source = cover, Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Top });
+        else if (LoadImage(media?.Background, 640) is { } wide)
         {
-            var badge = new Border
-            {
-                Background = ThemeManager.Brush("AccentBrush"), Padding = new Thickness(12, 0, 12, 0), Height = 32,
-                HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12),
-                Child = new TextBlock
-                {
-                    Text = Strings.Get("Running"), FontSize = 14, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-                    VerticalAlignment = VerticalAlignment.Center, Foreground = ThemeManager.Brush("OnAccentBrush")
-                }
-            };
-            Corners.SetSize(badge, CornerSize.Small);
-            grid.Children.Add(badge);
+            grid.Children.Add(new Image { Source = wide, Stretch = Stretch.UniformToFill });
+            grid.Children.Add(TitleOnArt(title));
         }
+        else
+            grid.Children.Add(new TextBlock
+            {
+                Text = title, FontSize = 27, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap, MaxLines = 3, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(20, 0, 20, 0),
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+            });
+        if (running)
+            grid.Children.Add(new Border
+            {
+                Width = 16, Height = 16, CornerRadius = new CornerRadius(8), Margin = new Thickness(16),
+                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+                Background = new SolidColorBrush(Microsoft.UI.Colors.White),
+                BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 0, 0, 0)), BorderThickness = new Thickness(2)
+            });
         return grid;
+    }
+
+    private static Grid TitleOnArt(string title)
+    {
+        var veil = new Grid();
+        var gradient = new LinearGradientBrush { StartPoint = new Windows.Foundation.Point(0, 0), EndPoint = new Windows.Foundation.Point(0, 1) };
+        gradient.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(0, 0, 0, 0), Offset = 0.3 });
+        gradient.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(190, 0, 0, 0), Offset = 1 });
+        veil.Background = gradient;
+        veil.Children.Add(new TextBlock
+        {
+            Text = title, FontSize = 25, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Margin = new Thickness(20, 0, 20, 16),
+            TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Bottom,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White)
+        });
+        return veil;
     }
 
     private static BitmapImage? LoadImage(string? path, int width)
@@ -258,48 +291,119 @@ public sealed partial class MainWindow
         return new BitmapImage(new Uri(path)) { DecodePixelWidth = width };
     }
 
-    private void Select(int index, bool scroll = true)
+    private bool _heroShowsAction;
+
+    private void Select(int index)
     {
-        if (index < 0 || index >= _games.Count || index == _selected) return;
+        if (index < 0 || index >= _games.Count || (index == _selected && !_heroShowsAction)) return;
         _selected = index;
         RefreshHero();
-        if (scroll) _cards[index].StartBringIntoView(new BringIntoViewOptions { HorizontalAlignmentRatio = 0.3, AnimationDesired = !_prefs.ReduceMotion });
+    }
+
+    /// <summary>Add and Settings have no artwork: the top shelf shows what they do, over the last game's picture.</summary>
+    private void ShowActionHero(string title, string description)
+    {
+        _heroShowsAction = true;
+        HeroLogo.Visibility = Visibility.Collapsed;
+        HeroTitleText.Visibility = Visibility.Visible;
+        Home.HeroTitle = title;
+        Home.HeroDetails = "";
+        Home.HeroDescription = description;
+        Home.HeroDescriptionUri = null;
+        Home.HeroDescriptionSource = "";
+        Motion.Entrance(Hero, _prefs.ReduceMotion);
     }
 
     private void FocusSelection()
     {
-        var state = _input.Mode == Core.Input.InputMode.Controller ? FocusState.Keyboard : FocusState.Programmatic;
-        if (_selected >= 0 && _selected < _cards.Count)
-        {
-            _cards[_selected].Focus(state);
-            _cards[_selected].StartBringIntoView(new BringIntoViewOptions { HorizontalAlignmentRatio = 0.3, AnimationDesired = false });
-        }
-        else _addCard?.Focus(state);
+        var state = FocusState.Keyboard;
+        var tile = _selected >= 0 && _selected < _tiles.Count ? _tiles[_selected] : _addTile;
+        tile?.Card.Focus(state);
     }
 
-    /// <summary>The hero, the backdrop and the ambient color for the selected game.</summary>
+    /// <summary>The top shelf, the backdrop and the ambient colour for the selected game.</summary>
     private void RefreshHero(bool fetch = true)
+    {
+        _heroShowsAction = false;
+        RefreshGameHero(fetch);
+    }
+
+    private void RefreshGameHero(bool fetch)
     {
         var game = SelectedGame;
         var art = game is null ? null : _prefs.Art.GetValueOrDefault(game.Id);
+        var media = art is { HasCatalogMedia: true } ? art : null;
         Home.HasSelection = game is not null;
         Home.HeroTitle = game is null ? Strings.Get("EmptyTitle") : LibraryOrder.DisplayTitle(game, art);
         var details = new List<string>();
         if (game is not null) details.Add(SourceLabel(game.Source));
         if (art?.IsMatched == true) details.AddRange(art.Details);
         Home.HeroDetails = string.Join("  ·  ", details);
-        Home.HeroDescription = game is null ? Strings.Get("EmptyBody")
-            : art?.IsMatched == true && art.Description.Length > 0 ? art.Description : "";
+        RefreshDescription(game);
         var running = game is not null && _session?.Game.Id == game.Id;
         Home.IsRunning = _session is not null;
         Home.HeroStatus = running ? Strings.Get("RunningResume")
             : _session is not null ? Strings.Format("OtherRunning", LibraryOrder.DisplayTitle(_session.Game, _prefs.Art.GetValueOrDefault(_session.Game.Id))) : "";
-        var background = art is { HasCatalogMedia: true } && File.Exists(art.Background) ? art.Background : null;
+        // The game's logo in the top shelf when there is one, its name otherwise, like a tvOS product screen.
+        var logo = LoadImage(media?.Logo, 1200);
+        HeroLogo.Source = logo;
+        HeroLogo.Visibility = logo is null ? Visibility.Collapsed : Visibility.Visible;
+        HeroTitleText.Visibility = logo is null ? Visibility.Visible : Visibility.Collapsed;
+        var background = media is not null && File.Exists(media.Background) ? media.Background : null;
         ShowBackdrop(background);
-        _ = UpdatePaletteAsync(background ?? (art is { HasCatalogMedia: true } ? art.Card : null));
+        _ = UpdatePaletteAsync(background ?? media?.Card);
         Motion.Entrance(Hero, _prefs.ReduceMotion);
         UpdateCards();
         if (fetch) ScheduleArtwork(game);
+    }
+
+    private static string DescriptionTitle(Game game, Artwork? art) =>
+        art is { IsMatched: true, CatalogTitle.Length: > 0 } ? art.CatalogTitle : LibraryOrder.SearchTitle(game, art);
+
+    private void RefreshDescription(Game? game)
+    {
+        Home.HeroDescriptionUri = null;
+        Home.HeroDescriptionSource = "";
+        Home.HeroDescription = game is null ? Strings.Get("EmptyBody") : "";
+        if (game is null) return;
+        var art = _prefs.ArtFor(game);
+        var language = Strings.Language;
+        var title = DescriptionTitle(game, art);
+        var key = language + "|" + title;
+        if (art.Descriptions.TryGetValue(key, out var cached))
+        {
+            Home.HeroDescription = cached.Text;
+            Home.HeroDescriptionSource = cached.SourceName;
+            if (Uri.TryCreate(cached.SourceUrl, UriKind.Absolute, out var uri) && uri.Scheme == "https")
+                Home.HeroDescriptionUri = uri;
+            return;
+        }
+        if (language == Strings.English && art.IsMatched) Home.HeroDescription = art.Description;
+        if (_descriptionRequests.Add(game.Id + "|" + key))
+            _ = FetchDescriptionAsync(game, title, language, key);
+    }
+
+    private async Task FetchDescriptionAsync(Game game, string title, string language, string key)
+    {
+        try
+        {
+            await Task.Delay(350, _descriptionLifetime.Token);
+            if (SelectedGame?.Id != game.Id || _heroShowsAction || Strings.Language != language)
+            {
+                _descriptionRequests.Remove(game.Id + "|" + key);
+                return;
+            }
+            var result = await _descriptions.FindDescriptionAsync(title, game.SteamId, language, _descriptionLifetime.Token);
+            if (_exiting || result.Text.Length == 0) return;
+            _prefs.ArtFor(game).Descriptions[key] = result;
+            Save();
+            // A late reply must not replace the currently selected game's text or a menu description.
+            if (SelectedGame?.Id == game.Id && !_heroShowsAction && Strings.Language == language
+                && DescriptionTitle(game, _prefs.ArtFor(game)) == title)
+                RefreshDescription(game);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { AppLog.Write($"Descrizione: {ex.Message}"); }
     }
 
     private static string SourceLabel(string source) => source switch
@@ -316,7 +420,6 @@ public sealed partial class MainWindow
         var color = await ArtworkPalette.ReadAsync(path);
         if (request != _paletteRequest || _exiting) return;
         ThemeManager.UseArtwork(color);
-        UpdateCards();
     }
 
     private void ShowBackdrop(string? path)
@@ -352,20 +455,19 @@ public sealed partial class MainWindow
         layer.Source = bitmap;
     }
 
-
-
     /// <summary>Starts the selected game, or brings it back when it is already running.</summary>
     private void StartOrResume()
     {
         var game = SelectedGame;
-        if (game is null || _activeDialog is not null) return;
+        if (game is null || IsOverlayOpen) return;
         Sounds.Play(UiSound.Confirm);
         if (_session is not null)
         {
             if (_session.Game.Id != game.Id)
             {
                 ShowToast(Strings.Format("CloseOtherFirst", LibraryOrder.DisplayTitle(_session.Game, _prefs.Art.GetValueOrDefault(_session.Game.Id))));
-                Select(_games.FindIndex(entry => entry.Id == _session.Game.Id));
+                _selected = _games.FindIndex(entry => entry.Id == _session.Game.Id);
+                RefreshHero(fetch: false);
                 FocusSelection();
                 return;
             }
@@ -400,7 +502,7 @@ public sealed partial class MainWindow
         _session.Dispose();
         _session = null;
         AppLog.Write(timedOut ? "Finestra del gioco non trovata" : "Gioco chiuso");
-        // The game that just closed moves to the front of the row, like on a console.
+        // The game that just closed moves to the front of the dock, like on a console.
         _games = LibraryOrder.Build(_prefs, _detected);
         _selected = _games.FindIndex(entry => entry.Id == game.Id);
         RenderCards();
@@ -415,26 +517,26 @@ public sealed partial class MainWindow
         if (!_session.RequestClose()) ShowToast(Strings.Get("CloseFailed"));
     }
 
-    // ───────── Covers and descriptions from the catalog ─────────
+    // ───────── Covers, logos and descriptions from the catalog ─────────
 
     private void ScheduleArtwork(Game? game)
     {
         if (game is null || _session is not null) return;
         var art = _prefs.Art.GetValueOrDefault(game.Id);
-        if (art is { IsMatched: true, HasCatalogMedia: true } || _fetched.Contains(game.Id)) return;
+        if (art is { NeedsMedia: false } || _fetched.Contains(game.Id)) return;
         _artworkLookup?.Cancel();
         var lookup = _artworkLookup = new CancellationTokenSource();
         _ = AutoArtworkAsync(game, lookup.Token, delay: 600);
     }
 
-    /// <summary>After a scan, looks up every game that has no cover yet, one at a time.</summary>
+    /// <summary>After a scan, looks up every game without pictures (or with older ones), one at a time.</summary>
     private async Task PrefetchArtworkAsync()
     {
         foreach (var game in _games.ToList())
         {
             if (_exiting || _session is not null) return;
             var art = _prefs.Art.GetValueOrDefault(game.Id);
-            if (art is { IsMatched: true, HasCatalogMedia: true } || _fetched.Contains(game.Id)) continue;
+            if (art is { NeedsMedia: false } || _fetched.Contains(game.Id)) continue;
             await AutoArtworkAsync(game, CancellationToken.None, delay: 250);
         }
     }
@@ -447,9 +549,9 @@ public sealed partial class MainWindow
             if (!_fetched.Add(game.Id)) return;
             var art = _prefs.ArtFor(game);
             var title = LibraryOrder.SearchTitle(game, art);
-            CatalogMatch? match = null;
+            CatalogMatch? match;
             if (art.IsMatched && Uri.TryCreate(art.CatalogUrl, UriKind.Absolute, out var page) && LaunchBoxParser.IsDetailsPage(page))
-                match = new CatalogMatch(title, page);
+                match = new CatalogMatch(art.CatalogTitle.Length > 0 ? art.CatalogTitle : title, page);
             else match = LaunchBoxParser.PickAutomatic(await _catalog.SearchAsync(title, token), title);
             if (match is null)
             {
@@ -466,19 +568,33 @@ public sealed partial class MainWindow
     private async Task ApplyCatalogAsync(Game game, CatalogMatch match, CancellationToken token)
     {
         var entry = await _catalog.GetAsync(match, Strings.Language, token);
-        string? cover = null, background = null;
+        var files = await DownloadAllAsync(entry, token);
         try
         {
-            cover = await TryDownload(entry.Cover, token);
-            background = await TryDownload(entry.Background, token);
             token.ThrowIfCancellationRequested();
-            ApplyArtwork(game, match, entry, cover, background);
+            ApplyArtwork(game, match, entry, files);
         }
-        finally
+        finally { files.Dispose(); }
+    }
+
+    /// <summary>The pictures of an entry, downloaded to temporary files (deleted on dispose).</summary>
+    internal sealed record CatalogFiles(string? Cover, string? Background, string? Logo, string? Banner) : IDisposable
+    {
+        public void Dispose()
         {
-            if (cover is not null) File.Delete(cover);
-            if (background is not null) File.Delete(background);
+            foreach (var file in new[] { Cover, Background, Logo, Banner })
+                if (file is not null && File.Exists(file)) File.Delete(file);
         }
+    }
+
+    private async Task<CatalogFiles> DownloadAllAsync(CatalogEntry entry, CancellationToken token)
+    {
+        var cover = TryDownload(entry.Cover, token);
+        var background = TryDownload(entry.Background, token);
+        var logo = TryDownload(entry.Logo, token);
+        var banner = TryDownload(entry.Banner, token);
+        await Task.WhenAll(cover, background, logo, banner);
+        return new CatalogFiles(await cover, await background, await logo, await banner);
     }
 
     private async Task<string?> TryDownload(Uri? uri, CancellationToken token)
@@ -488,13 +604,18 @@ public sealed partial class MainWindow
         catch (TaskCanceledException) when (!token.IsCancellationRequested) { return null; }
     }
 
-    private void ApplyArtwork(Game game, CatalogMatch match, CatalogEntry entry, string? cover, string? background)
+    private void ApplyArtwork(Game game, CatalogMatch match, CatalogEntry entry, CatalogFiles files)
     {
         var art = _prefs.ArtFor(game);
-        art.Card = cover is not null ? Core.Settings.Preferences.StoreImage(_paths.ArtFolder, game.Id, "card", cover) : "";
-        art.Background = background is not null ? Core.Settings.Preferences.StoreImage(_paths.ArtFolder, game.Id, "background", background) : "";
+        string Store(string? file, string kind) =>
+            file is not null ? Core.Settings.Preferences.StoreImage(_paths.ArtFolder, game.Id, kind, file) : "";
+        art.Card = Store(files.Cover, "card");
+        art.Background = Store(files.Background, "background");
+        art.Logo = Store(files.Logo, "logo");
+        art.Banner = Store(files.Banner, "banner");
         art.CoverAspect = art.Card.Length > 0 ? entry.CoverAspect : 0;
         art.HasCatalogMedia = true;
+        art.MediaVersion = Artwork.CurrentMediaVersion;
         art.Description = entry.Description;
         art.CatalogId = match.Id;
         art.CatalogTitle = match.Title;
@@ -520,45 +641,6 @@ internal static class Motion
 
     public static bool Reduce { get; set; }
 
-    /// <summary>Grows (and lifts) an element a little while it has the pointer or the focus, with a soft spring.</summary>
-    public static void AddLift(FrameworkElement element, double scale, double lift = 0)
-    {
-        bool pointer = false, focus = false;
-        element.PointerEntered += (_, _) => { pointer = true; Update(); };
-        element.PointerExited += (_, _) => { pointer = false; Update(); };
-        element.PointerCanceled += (_, _) => { pointer = false; Update(); };
-        element.GotFocus += (_, _) => { focus = true; Update(); };
-        element.LostFocus += (_, _) => { focus = false; Update(); };
-
-        void Update()
-        {
-            var visual = ElementCompositionPreview.GetElementVisual(element);
-            visual.CenterPoint = new Vector3((float)element.ActualWidth / 2, (float)element.ActualHeight / 2, 0);
-            var on = pointer || focus;
-            var target = on ? (float)scale : 1f;
-            if (!Enabled(Reduce))
-            {
-                visual.Scale = new Vector3(target, target, 1);
-                return;
-            }
-            var compositor = visual.Compositor;
-            var spring = compositor.CreateSpringVector3Animation();
-            spring.FinalValue = new Vector3(target, target, 1);
-            spring.DampingRatio = 0.62f;
-            spring.Period = TimeSpan.FromMilliseconds(55);
-            visual.StartAnimation("Scale", spring);
-            if (lift > 0)
-            {
-                ElementCompositionPreview.SetIsTranslationEnabled(element, true);
-                var move = compositor.CreateSpringVector3Animation();
-                move.FinalValue = new Vector3(0, on ? -(float)lift : 0, 0);
-                move.DampingRatio = 0.7f;
-                move.Period = TimeSpan.FromMilliseconds(55);
-                visual.StartAnimation("Translation", move);
-            }
-        }
-    }
-
     public static void Fade(UIElement element, float target, int milliseconds, bool reduce)
     {
         var visual = ElementCompositionPreview.GetElementVisual(element);
@@ -574,7 +656,7 @@ internal static class Motion
         visual.StartAnimation("Opacity", animation);
     }
 
-    /// <summary>The hero slides up a few pixels and fades in when the selection changes.</summary>
+    /// <summary>The top shelf fades in and rises a little when the focus moves to another game.</summary>
     public static void Entrance(UIElement element, bool reduce)
     {
         if (!Enabled(reduce)) return;
@@ -582,14 +664,14 @@ internal static class Motion
         ElementCompositionPreview.SetIsTranslationEnabled(element, true);
         var compositor = visual.Compositor;
         var slide = compositor.CreateVector3KeyFrameAnimation();
-        slide.InsertKeyFrame(0, new Vector3(0, 14, 0));
+        slide.InsertKeyFrame(0, new Vector3(0, 12, 0));
         slide.InsertKeyFrame(1, Vector3.Zero, compositor.CreateCubicBezierEasingFunction(new Vector2(.18f, .8f), new Vector2(.29f, 1)));
-        slide.Duration = TimeSpan.FromMilliseconds(320);
+        slide.Duration = TimeSpan.FromMilliseconds(300);
         visual.StartAnimation("Translation", slide);
         var fade = compositor.CreateScalarKeyFrameAnimation();
-        fade.InsertKeyFrame(0, 0.55f);
+        fade.InsertKeyFrame(0, 0.4f);
         fade.InsertKeyFrame(1, 1f);
-        fade.Duration = TimeSpan.FromMilliseconds(320);
+        fade.Duration = TimeSpan.FromMilliseconds(300);
         visual.StartAnimation("Opacity", fade);
     }
 }

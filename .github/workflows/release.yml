@@ -53,7 +53,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: c0n50le-${{ steps.version.outputs.value }}
-          path: dist/C0n50le-*-x64.exe
+          path: |
+            dist/C0n50le-Setup-x64.exe
+            dist/C0n50le-Portable-x64.zip
           if-no-files-found: error
     outputs:
       version: ${{ steps.version.outputs.value }}
@@ -78,4 +80,4 @@ jobs:
           args=(--repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes)
           if [[ "$VERSION" == *-* ]]; then args+=(--prerelease); fi
           if [[ "$DRAFT" == true ]]; then args+=(--draft); fi
-          gh release create "v$VERSION" dist/C0n50le-Setup-x64.exe dist/C0n50le-Portable-x64.exe "${args[@]}"
+          gh release create "v$VERSION" dist/C0n50le-Setup-x64.exe dist/C0n50le-Portable-x64.zip "${args[@]}"

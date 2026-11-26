@@ -39,7 +39,8 @@ public static class ReleaseFeed
 {
     public const string Repository = "1r0n51uv/c0n50le";
     public const string SetupAsset = "C0n50le-Setup-x64.exe";
-    public const string PortableAsset = "C0n50le-Portable-x64.exe";
+    /// <summary>The portable build: a zip of the app folder (WinUI cannot start from a single-file exe).</summary>
+    public const string PortableAsset = "C0n50le-Portable-x64.zip";
 
     public static string ReleasesUrl => $"https://api.github.com/repos/{Repository}/releases?per_page=20";
 

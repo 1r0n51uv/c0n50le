@@ -1,6 +1,13 @@
 # c0n50le
 
-La home a schermo intero per avviare dal divano i giochi e le app del PC, con il controller o con mouse e tastiera.
+Le descrizioni seguono la lingua dell'interfaccia. La ricerca per titolo su Wikipedia copre anche giochi
+PlayStation, Xbox, Nintendo e titoli provenienti da altri store o aggiunti manualmente, senza richiedere un ID Steam.
+Il testo viene salvato per titolo e lingua e accompagnato dal collegamento alla fonte (Wikipedia, CC BY-SA).
+In italiano, se manca una voce riconosciuta, la descrizione resta vuota: non viene sostituita da quella inglese di
+LaunchBox. In inglese è disponibile anche Steam come fonte aggiuntiva. La copertura dipende dalle voci disponibili;
+questa funzione non aggiunge nuovi launcher alla scansione automatica della libreria.
+
+La home a schermo intero, nello stile di Apple TV, per avviare dal divano i giochi e le app del PC con il controller o con mouse e tastiera.
 WinUI 3 su .NET 8, per Windows 10 e 11 (x64).
 
 Unisce la home in stile console di [Console Mode](https://github.com/1r0n51uv/consolemode) e la libreria con le card
@@ -10,7 +17,7 @@ di [RON1N Mode](https://github.com/1r0n51uv/ron1n-mode). È un'app nuova: non ca
 
 - **Libreria propria**: i giochi di Steam ed Epic, una cartella giochi (una sottocartella per gioco) e gli eseguibili
   aggiunti a mano. Gli ultimi giocati sono i primi.
-- **Copertine e descrizioni** dal LaunchBox Games Database, abbinate da sole quando il titolo è certo, oppure con
+- **Copertine, loghi e descrizioni** dal LaunchBox Games Database, abbinate da sole quando il titolo è certo, oppure con
   "Cerca un altro titolo" e anteprima di copertina e sfondo.
 - **Avvio e ripresa**: una card avvia il gioco, la stessa card lo riprende senza aprirne una seconda copia.
   Ctrl+Alt+F11 o Visualizza+Y sul controller riportano alla home mentre giochi; alla chiusura del gioco la home torna da sola.
@@ -18,13 +25,13 @@ di [RON1N Mode](https://github.com/1r0n51uv/ron1n-mode). È un'app nuova: non ca
   nascosto; muovere il mouse o premere un tasto torna a mouse e tastiera. Xbox, PlayStation e Switch Pro.
 - **Sistema**: libreria, schermo e scala, comandi e prova del controller, temi e suoni, avvio con Windows,
   aggiornamenti, diagnostica, lingua (italiano e inglese).
-- **Cinque temi**: Notte, Vetro, Colore del gioco, Alba, Arcade.
+- **Stile tvOS**: top shelf con l'artwork e il logo del gioco a fuoco, dock di vetro in basso, menu contestuali, avvisi, impostazioni a sidebar. Tema **Chiaro** o **Scuro**, **Liquid Glass** spento o a tre profondità.
 - Intro, suoni, musica nella home, tour guidato, icona nell'area di notifica, aggiornamenti da GitHub con verifica SHA-256.
 
 ## Download
 
 Dalla pagina delle release: `C0n50le-Setup-x64.exe` (installazione per utente, senza amministratore, si aggiorna da sola)
-oppure `C0n50le-Portable-x64.exe` (un solo exe che salva i dati in `c0n50le_Data` accanto a sé).
+oppure `C0n50le-Portable-x64.zip` (da estrarre in una cartella: i dati restano in `c0n50le_Data` accanto all'exe).
 
 ## Sviluppo
 

@@ -24,6 +24,9 @@ public sealed class CatalogTests
         <a href="https://images.launchbox-app.com/front-eu.jpg" data-title="Control Resonant - Box - Front Image (Europe)" data-footer="1000 x 1420">
         <a href="https://images.launchbox-app.com/shot.jpg" data-title="Control Resonant - Screenshot - Gameplay Image" data-footer="1920 x 1080">
         <a href="https://images.launchbox-app.com/fanart.jpg" data-title="Control Resonant - Fanart - Background Image" data-footer="3840 x 2160">
+        <a href="https://images.launchbox-app.com/logo-jp.png" data-title="Control Resonant - Clear Logo Image (Japan)" data-footer="1600 x 600">
+        <a href="https://images.launchbox-app.com/logo.png" data-title="Control Resonant - Clear Logo Image (World)" data-footer="800 x 300">
+        <a href="https://images.launchbox-app.com/steam.jpg" data-title="Control Resonant - Steam Banner Image" data-footer="460 x 215">
         <a href="https://evil.example/fanart.jpg" data-title="Control Resonant - Fanart - Background Image" data-footer="7680 x 4320">
         """;
 
@@ -45,6 +48,8 @@ public sealed class CatalogTests
         Assert.Equal("https://images.launchbox-app.com/fanart.jpg", entry.Background!.AbsoluteUri);
         Assert.Equal(["Gioco di ruolo, Azione", "2026", "Remedy Entertainment"], entry.Details);
         Assert.Equal(1000 / 1420.0, entry.CoverAspect, 3);
+        Assert.Equal("https://images.launchbox-app.com/logo.png", entry.Logo!.AbsoluteUri);
+        Assert.Equal("https://images.launchbox-app.com/steam.jpg", entry.Banner!.AbsoluteUri);
     }
 
     [Fact]

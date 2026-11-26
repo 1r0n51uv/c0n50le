@@ -40,7 +40,8 @@ public sealed class LocalizationTests
             .SelectMany(match => match.Groups.Values.Skip(1).Where(group => group.Success && group.Value.Length > 0).Select(group => group.Value)))
             .ToHashSet();
         var keys = Strings.Catalog(Strings.Italian).Keys.ToHashSet();
-        Assert.Empty(used.Where(key => !keys.Contains(key)));
+        // Keys built at run time ("Theme_" + id, "Glass_" + depth) are checked by ThemeTests.
+        Assert.Empty(used.Where(key => !key.EndsWith('_') && !keys.Contains(key)));
         foreach (var stop in Tour.Stops)
         {
             Assert.Contains(Tour.TitleKey(stop), keys);
@@ -53,7 +54,7 @@ public sealed class LocalizationTests
     {
         var english = Strings.Catalog(Strings.English);
         var same = Strings.Catalog(Strings.Italian)
-            .Where(pair => pair.Value == english[pair.Key] && pair.Value.Contains(' ') && !pair.Key.StartsWith("Credits"))
+            .Where(pair => pair.Value == english[pair.Key] && pair.Value.Contains(' ') && !pair.Key.StartsWith("Credits") && pair.Key != "LiquidGlass")
             .Select(pair => pair.Key);
         Assert.Empty(same);
     }

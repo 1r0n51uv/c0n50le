@@ -36,6 +36,8 @@ public sealed class Game
 public sealed class Artwork
 {
     public string Description { get; set; } = "";
+    /// <summary>Localized texts keyed by language and catalog title, including their attribution.</summary>
+    public Dictionary<string, Catalog.LocalizedDescription> Descriptions { get; set; } = [];
     /// <summary>The cover picture (portrait box art), a file in the data folder.</summary>
     public string Card { get; set; } = "";
     /// <summary>The wide picture behind the home, a file in the data folder.</summary>
@@ -46,6 +48,17 @@ public sealed class Artwork
     public string[] Details { get; set; } = [];
     public bool HasCatalogMedia { get; set; }
     public double CoverAspect { get; set; }
+    /// <summary>The game's transparent logo, laid over the background on a card.</summary>
+    public string Logo { get; set; } = "";
+    /// <summary>A wide picture with the title, for a card when there is no logo.</summary>
+    public string Banner { get; set; } = "";
+    /// <summary>Which pictures were fetched: older art (without logo and banner) is completed by itself.</summary>
+    public int MediaVersion { get; set; }
+
+    public const int CurrentMediaVersion = 2;
+
+    [JsonIgnore]
+    public bool NeedsMedia => !IsMatched || !HasCatalogMedia || MediaVersion < CurrentMediaVersion;
 
     [JsonIgnore]
     public bool IsMatched => CatalogId.StartsWith("launchbox:", StringComparison.Ordinal);

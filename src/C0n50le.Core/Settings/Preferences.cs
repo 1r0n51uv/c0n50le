@@ -31,6 +31,8 @@ public sealed class Preferences
 
     // Look and sound
     public string Theme { get; set; } = Theming.ThemeCatalog.DefaultId;
+    /// <summary>Liquid Glass: 0 off, 1–3 the depths.</summary>
+    public int Glass { get; set; } = (int)Theming.ThemeCatalog.DefaultGlass;
     public bool ShowSystemCard { get; set; } = true;
     public bool ReduceMotion { get; set; }
     public bool Sounds { get; set; } = true;
@@ -94,7 +96,8 @@ public sealed class Preferences
             game.Source = GameSource.Manual;
         }
         UiScale = Theming.UiScale.Clamp(UiScale);
-        Theme = Theming.ThemeCatalog.Get(Theme).Id;
+        Theme = Theming.ThemeCatalog.Normalize(Theme);
+        Glass = (int)Theming.ThemeCatalog.NormalizeGlass(Glass);
         if (!Input.ShortcutChoices.IsKnownKeyboard(KeyboardShortcut)) KeyboardShortcut = "F11";
         if (!Input.ShortcutChoices.IsKnownController(ControllerShortcut))
             ControllerShortcut = Input.ControllerButtons.View | Input.ControllerButtons.Y;
@@ -116,7 +119,7 @@ public sealed class Preferences
     public int PruneArt(string artFolder)
     {
         if (!Directory.Exists(artFolder)) return 0;
-        var used = Art.Values.SelectMany(art => new[] { art.Card, art.Background })
+        var used = Art.Values.SelectMany(art => new[] { art.Card, art.Background, art.Logo, art.Banner })
             .Where(path => path.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var removed = 0;
         foreach (var file in Directory.GetFiles(artFolder))
