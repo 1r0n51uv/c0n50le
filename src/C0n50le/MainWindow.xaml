@@ -160,12 +160,14 @@
 
                 <!-- ───────── Context menu (a card's options, a setting's choices) ───────── -->
                 <Grid x:Name="MenuLayer" Visibility="Collapsed" Background="Transparent" Tapped="OnMenuBackgroundTapped">
+                    <Canvas>
                     <ContentControl x:Name="MenuPanel" Style="{StaticResource GlassPanel}" CornerRadius="30" Width="460"
                                     HorizontalAlignment="Left" VerticalAlignment="Top" Tapped="OnMenuPanelTapped">
                         <ScrollViewer MaxHeight="760" VerticalScrollBarVisibility="Hidden" IsTabStop="False">
                             <StackPanel x:Name="MenuItems" Padding="10,10,10,10"/>
                         </ScrollViewer>
                     </ContentControl>
+                    </Canvas>
                 </Grid>
 
                 <!-- ───────── Alert ───────── -->

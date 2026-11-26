@@ -68,13 +68,14 @@ public sealed partial class MainWindow
                 await LoadLibraryAsync();
             }));
         var card = _selected >= 0 && _selected < _tiles.Count ? _tiles[_selected].Card : origin;
-        OpenMenu(entries, card, card);
+        // Use the fixed slot: the card itself is scaled and lifted by the focus animation.
+        OpenMenu(entries, card?.Parent as FrameworkElement ?? card, card, isSettingsRow: false);
     }
 
     // ───────── Context menu ─────────
 
     /// <summary>A tvOS context menu beside <paramref name="anchor"/>, or in the middle without one.</summary>
-    private void OpenMenu(IReadOnlyList<MenuEntry> entries, FrameworkElement? anchor, Control? origin)
+    private void OpenMenu(IReadOnlyList<MenuEntry> entries, FrameworkElement? anchor, Control? origin, bool isSettingsRow = true)
     {
         if (AlertOpen) return;
         _menuOrigin = origin;
@@ -110,8 +111,8 @@ public sealed partial class MainWindow
             first ??= button;
             if (entry.Checked) chosen = button;
         }
-        PlaceMenu(anchor);
         MenuLayer.Visibility = Visibility.Visible;
+        PlaceMenu(anchor, isSettingsRow);
         Sounds.Play(UiSound.Open);
         Motion.Fade(MenuPanel, 1, 160, _prefs.ReduceMotion);
         var target = chosen ?? first;
@@ -119,30 +120,39 @@ public sealed partial class MainWindow
     }
 
     /// <summary>Beside the anchor (to its right, or left when there is no room), never off screen.</summary>
-    private void PlaceMenu(FrameworkElement? anchor)
+    private void PlaceMenu(FrameworkElement? anchor, bool isSettingsRow)
     {
+        const double edge = 40;
+        MenuPanel.Width = Math.Min(460, Math.Max(1, Stage.ActualWidth - 2 * edge));
+        MenuPanel.MaxHeight = Math.Max(1, Stage.ActualHeight - 2 * edge);
+        // Canvas coordinates keep the previous position out of the next size measurement.
         MenuPanel.Measure(new Windows.Foundation.Size(MenuPanel.Width, double.PositiveInfinity));
-        var height = Math.Min(MenuPanel.DesiredSize.Height, Stage.ActualHeight - 80);
-        if (anchor is null || anchor.ActualWidth <= 0)
+        var height = MenuPanel.DesiredSize.Height;
+        var maxLeft = Math.Max(edge, Stage.ActualWidth - MenuPanel.Width - edge);
+        var maxTop = Math.Max(edge, Stage.ActualHeight - height - edge);
+        void Position(double x, double y)
         {
-            MenuPanel.Margin = new Thickness((Stage.ActualWidth - MenuPanel.Width) / 2, (Stage.ActualHeight - height) / 2, 0, 0);
+            Canvas.SetLeft(MenuPanel, Math.Clamp(x, edge, maxLeft));
+            Canvas.SetTop(MenuPanel, Math.Clamp(y, edge, maxTop));
+        }
+        if (anchor is null || anchor.ActualWidth <= 0 || anchor.ActualHeight <= 0)
+        {
+            Position((Stage.ActualWidth - MenuPanel.Width) / 2, (Stage.ActualHeight - height) / 2);
             return;
         }
         var bounds = anchor.TransformToVisual(Stage).TransformBounds(new Windows.Foundation.Rect(0, 0, anchor.ActualWidth, anchor.ActualHeight));
-        if (bounds.Width > MenuPanel.Width * 1.3)
+        if (isSettingsRow)
         {
             // A settings row: the choices open at its right end, by the value, under the row (above it near the bottom).
-            var x = Math.Clamp(bounds.Right - MenuPanel.Width, 40, Stage.ActualWidth - MenuPanel.Width - 40);
-            var y = bounds.Bottom + 8 + height <= Stage.ActualHeight - 40 ? bounds.Bottom + 8 : Math.Max(40, bounds.Y - height - 8);
-            MenuPanel.Margin = new Thickness(x, y, 0, 0);
+            var y = bounds.Bottom + 8 <= maxTop ? bounds.Bottom + 8 : bounds.Y - height - 8;
+            Position(bounds.Right - MenuPanel.Width, y);
             return;
         }
         var gap = 48;
         var left = bounds.Right + gap;
-        if (left + MenuPanel.Width > Stage.ActualWidth - 40) left = bounds.X - gap - MenuPanel.Width;
-        if (left < 40) left = Math.Clamp(bounds.X, 40, Stage.ActualWidth - MenuPanel.Width - 40);
-        var top = Math.Clamp(bounds.Y + bounds.Height / 2 - height / 2, 40, Math.Max(40, Stage.ActualHeight - height - 40));
-        MenuPanel.Margin = new Thickness(left, top, 0, 0);
+        if (left > maxLeft) left = bounds.X - gap - MenuPanel.Width;
+        if (left < edge) left = bounds.X;
+        Position(left, bounds.Y + (bounds.Height - height) / 2);
     }
 
     private void OnMenuBackgroundTapped(object sender, TappedRoutedEventArgs e) => CloseMenu();
