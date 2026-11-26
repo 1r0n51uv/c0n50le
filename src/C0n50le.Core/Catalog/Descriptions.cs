@@ -60,8 +60,11 @@ public static class DescriptionParser
         if (document.RootElement.TryGetProperty("type", out var type) && type.GetString() == "disambiguation") return "";
         if (!document.RootElement.TryGetProperty("extract", out var extract)) return "";
         var text = Plain(extract.GetString() ?? "");
-        var marker = language.StartsWith("it", StringComparison.OrdinalIgnoreCase) ? "videogioco" : "video game";
-        return text.Contains(marker, StringComparison.OrdinalIgnoreCase) ? text : "";
+        if (Regex.IsMatch(text, @"\b(?:videogio(?:co|chi)|video[ -]games?)\b", RegexOptions.IgnoreCase)) return text;
+        // Some articles introduce the game by genre alone (e.g. Control Resonant).
+        return Regex.IsMatch(text, @"\b(?:action RPG|RPG d.azione|sparatutto|platformer)\b", RegexOptions.IgnoreCase)
+            && Regex.IsMatch(text, @"\b(?:sviluppat[oa]|developed)\b", RegexOptions.IgnoreCase)
+            ? text : "";
     }
 
     internal static string Plain(string text)

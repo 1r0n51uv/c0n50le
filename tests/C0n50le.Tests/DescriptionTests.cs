@@ -39,6 +39,13 @@ public sealed class DescriptionTests
     }
 
     [Fact]
+    public void Italian_summary_can_introduce_the_game_by_its_genre()
+    {
+        const string text = "Control Resonant è un action RPG sviluppato e pubblicato da Remedy Entertainment.";
+        Assert.Equal(text, DescriptionParser.ParseWikipediaSummary(JsonSerializer.Serialize(new { extract = text }), "it-IT"));
+    }
+
+    [Fact]
     public async Task Missing_Italian_text_does_not_fall_back_to_English()
     {
         var handler = new Replies("""{"query":{"search":[]}}""");
