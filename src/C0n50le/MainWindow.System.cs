@@ -60,7 +60,19 @@ public sealed partial class MainWindow
         DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, FocusSelection);
     }
 
-    private void OnSystemBackClick(object sender, RoutedEventArgs e) => CloseSystem();
+    private void GoBackInSystem()
+    {
+        var focused = Root.XamlRoot is null ? null : FocusManager.GetFocusedElement(Root.XamlRoot) as DependencyObject;
+        if (focused is not null && IsInside(focused, Rows))
+        {
+            Sounds.Play(UiSound.Back);
+            FocusCategory();
+            return;
+        }
+        CloseSystem();
+    }
+
+    private void OnSystemBackClick(object sender, RoutedEventArgs e) => GoBackInSystem();
 
     private void StepCategory(int step)
     {

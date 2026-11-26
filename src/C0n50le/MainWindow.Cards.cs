@@ -46,6 +46,15 @@ public sealed partial class MainWindow
         entries.Add(MenuEntry.Divider);
         entries.Add(new(Strings.Get("EditGame"), "", Action: () => EditGameAsync(game)));
         entries.Add(new(Strings.Get("SearchArtwork"), "", Action: () => SearchArtworkAsync(game)));
+        var art = _prefs.Art.GetValueOrDefault(game.Id);
+        if (art?.Descriptions.GetValueOrDefault(Strings.Language + "|" + DescriptionTitle(game, art)) is { } description
+            && Uri.TryCreate(description.SourceUrl, UriKind.Absolute, out var source) && source.Scheme == "https")
+        {
+            entries.Add(new(Strings.Get("DescriptionCredits"), Action: async () =>
+            {
+                await Windows.System.Launcher.LaunchUriAsync(source);
+            }));
+        }
         entries.Add(MenuEntry.Divider);
         entries.Add(new(Strings.Get("HideGame"), "", Action: () =>
         {

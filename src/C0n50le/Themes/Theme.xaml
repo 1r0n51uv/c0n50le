@@ -223,8 +223,61 @@
         <Setter Property="FontSize" Value="26"/>
     </Style>
 
+    <!-- List rows keep their background inside the panel while the content grows. -->
+    <ControlTemplate x:Key="ListRowTemplate" TargetType="Button">
+        <Grid x:Name="Row">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal"/>
+                    <VisualState x:Name="PointerOver"/>
+                    <VisualState x:Name="Pressed"/>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Target="Row.Opacity" Value="0.4"/>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+                <VisualStateGroup x:Name="FocusStates">
+                    <VisualState x:Name="Unfocused"/>
+                    <VisualState x:Name="Focused">
+                        <VisualState.Setters>
+                            <Setter Target="Highlight.Opacity" Value="1"/>
+                            <Setter Target="RowContent.Foreground" Value="{StaticResource FocusTextBrush}"/>
+                            <Setter Target="ContentScale.ScaleX" Value="{StaticResource FocusScale}"/>
+                            <Setter Target="ContentScale.ScaleY" Value="{StaticResource FocusScale}"/>
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="PointerFocused">
+                        <VisualState.Setters>
+                            <Setter Target="Highlight.Opacity" Value="1"/>
+                            <Setter Target="RowContent.Foreground" Value="{StaticResource FocusTextBrush}"/>
+                            <Setter Target="ContentScale.ScaleX" Value="{StaticResource FocusScale}"/>
+                            <Setter Target="ContentScale.ScaleY" Value="{StaticResource FocusScale}"/>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+            <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"/>
+            <Border x:Name="Highlight" Opacity="0" Background="{StaticResource FocusBrush}"
+                    CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+            <Grid Margin="{TemplateBinding Padding}">
+                <ContentPresenter x:Name="RowContent" Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  Foreground="{TemplateBinding Foreground}" RenderTransformOrigin="0.5,0.5"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                  AutomationProperties.AccessibilityView="Raw">
+                    <ContentPresenter.RenderTransform>
+                        <ScaleTransform x:Name="ContentScale"/>
+                    </ContentPresenter.RenderTransform>
+                </ContentPresenter>
+            </Grid>
+        </Grid>
+    </ControlTemplate>
+
     <!-- Sidebar and settings row: 72 high, corner 16, Medium 25, no fill until focused. -->
     <Style x:Key="TvListItem" TargetType="Button" BasedOn="{StaticResource PlatterBase}">
+        <Setter Property="Template" Value="{StaticResource ListRowTemplate}"/>
         <Setter Property="MinHeight" Value="72"/>
         <Setter Property="Padding" Value="20,0"/>
         <Setter Property="CornerRadius" Value="16"/>
@@ -234,11 +287,12 @@
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
     </Style>
 
-    <!-- Context menu item: 70 high, corner 16, Medium 25. -->
+    <!-- Context menu item: a rectangular highlight between the separators. -->
     <Style x:Key="TvMenuItem" TargetType="Button" BasedOn="{StaticResource TvListItem}">
         <Setter Property="MinHeight" Value="70"/>
         <Setter Property="Height" Value="70"/>
-        <Setter Property="Padding" Value="0,0,24,0"/>
+        <Setter Property="Padding" Value="12,0,24,0"/>
+        <Setter Property="CornerRadius" Value="0"/>
     </Style>
 
     <!-- A game card: 250×150, corner 30. It grows and lifts on focus from code (tvOS focus engine). -->

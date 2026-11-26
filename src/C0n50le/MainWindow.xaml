@@ -60,10 +60,6 @@
                             <TextBlock Text="{x:Bind Home.HeroDescription, Mode=OneWay}" Visibility="{x:Bind Home.HasHeroDescription, Mode=OneWay}" FontSize="29" FontWeight="Medium" LineHeight="36"
                                        LineStackingStrategy="BlockLineHeight" TextWrapping="Wrap" MaxLines="3" MaxWidth="900"
                                        HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextBrush}"/>
-                            <HyperlinkButton Content="{x:Bind Home.HeroDescriptionSource, Mode=OneWay}"
-                                             NavigateUri="{x:Bind Home.HeroDescriptionUri, Mode=OneWay}"
-                                             Visibility="{x:Bind Home.HasDescriptionSource, Mode=OneWay}"
-                                             FontSize="18" Padding="0" HorizontalAlignment="Left"/>
                             <StackPanel Orientation="Horizontal" Spacing="12" Visibility="{x:Bind Home.IsRunning, Mode=OneWay}">
                                 <Ellipse Width="12" Height="12" Fill="{StaticResource TextBrush}" VerticalAlignment="Center"/>
                                 <TextBlock Text="{x:Bind Home.HeroStatus, Mode=OneWay}" FontSize="25" FontWeight="SemiBold"
@@ -132,17 +128,19 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <StackPanel Orientation="Horizontal" Spacing="22">
-                            <Button x:Name="SystemBack" Style="{StaticResource TvIconButton}" Click="OnSystemBackClick" VerticalAlignment="Center">
+                            <Button x:Name="SystemBack" Style="{StaticResource TvIconButton}" Click="OnSystemBackClick"
+                                    AllowFocusOnInteraction="False" VerticalAlignment="Center">
                                 <FontIcon Glyph="&#xE72B;" FontSize="24"/>
                             </Button>
                             <TextBlock x:Name="SystemTitle" FontSize="58" FontWeight="Bold" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextBrush}"/>
                         </StackPanel>
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Hidden" IsTabStop="False">
+                        <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden" IsTabStop="False">
                             <StackPanel x:Name="Categories" Spacing="6" Padding="4,8,24,8"/>
                         </ScrollViewer>
                     </Grid>
-                    <Grid Grid.Column="1" RowSpacing="20" MaxWidth="1100" HorizontalAlignment="Left">
+                    <Grid Grid.Column="1" RowSpacing="20">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
@@ -150,7 +148,8 @@
                         </Grid.RowDefinitions>
                         <TextBlock x:Name="CategoryTitle" FontSize="38" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}"
                                    Margin="20,10,0,0" Height="56"/>
-                        <ScrollViewer x:Name="RowsScroll" Grid.Row="1" VerticalScrollBarVisibility="Hidden" IsTabStop="False">
+                        <ScrollViewer x:Name="RowsScroll" Grid.Row="1" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                                      BringIntoViewOnFocusChange="False" VerticalScrollBarVisibility="Hidden" IsTabStop="False">
                             <StackPanel x:Name="Rows" Spacing="4" Padding="8,8,24,24"/>
                         </ScrollViewer>
                         <TextBlock x:Name="RowFooter" Grid.Row="2" Style="{StaticResource Caption}" TextWrapping="Wrap" MaxLines="3"
