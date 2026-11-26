@@ -8,6 +8,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
@@ -16,29 +17,37 @@ namespace C0n50le;
 
 public sealed partial class MainWindow
 {
-    private ContentDialog? _activeDialog;
-    private Control? _pickerOrigin;
+    private Control? _menuOrigin;
+    private TaskCompletionSource<int>? _alert;
+    private Control? _alertOrigin;
     private DispatcherQueueTimer? _toastTimer;
 
-    private bool IsOverlayOpen => _activeDialog is not null || Picker.Visibility == Visibility.Visible || TourVisible;
+    private bool MenuOpen => MenuLayer.Visibility == Visibility.Visible;
+    private bool AlertOpen => AlertLayer.Visibility == Visibility.Visible;
+    private bool IsOverlayOpen => MenuOpen || AlertOpen || TourVisible;
 
-    /// <summary>One entry of a picker.</summary>
-    private sealed record PickerOption(string Label, string Glyph = "", bool Selected = false, Func<Task>? Action = null, bool Danger = false);
+    /// <summary>One entry of a context menu. A null label is a divider.</summary>
+    private sealed record MenuEntry(string? Label, string Glyph = "", bool Checked = false, Func<Task>? Action = null)
+    {
+        public static MenuEntry Divider { get; } = new((string?)null);
+    }
 
-    // ───────── Card options ─────────
+    // ───────── A card's options ─────────
 
     private void OpenCardMenu(Control? origin = null)
     {
         if (SelectedGame is not { } game || IsOverlayOpen) return;
         var running = _session?.Game.Id == game.Id;
-        var options = new List<PickerOption>
+        var entries = new List<MenuEntry>
         {
             new(running ? Strings.Get("Resume") : Strings.Get("Play"), running ? "" : "", Action: () => { StartOrResume(); return Task.CompletedTask; })
         };
-        if (running) options.Add(new(Strings.Get("CloseGame"), "", Action: () => { CloseRunningGame(); return Task.CompletedTask; }));
-        options.Add(new(Strings.Get("EditGame"), "", Action: () => EditGameAsync(game)));
-        options.Add(new(Strings.Get("SearchArtwork"), "", Action: () => SearchArtworkAsync(game)));
-        options.Add(new(Strings.Get("HideGame"), "", Action: () =>
+        if (running) entries.Add(new(Strings.Get("CloseGame"), "", Action: () => { CloseRunningGame(); return Task.CompletedTask; }));
+        entries.Add(MenuEntry.Divider);
+        entries.Add(new(Strings.Get("EditGame"), "", Action: () => EditGameAsync(game)));
+        entries.Add(new(Strings.Get("SearchArtwork"), "", Action: () => SearchArtworkAsync(game)));
+        entries.Add(MenuEntry.Divider);
+        entries.Add(new(Strings.Get("HideGame"), "", Action: () =>
         {
             if (_session?.Game.Id == game.Id) return Task.CompletedTask;
             _prefs.Hidden.Add(game.Id);
@@ -47,25 +56,181 @@ public sealed partial class MainWindow
             return LoadLibraryAsync();
         }));
         if (game.IsManual)
-            options.Add(new(Strings.Get("RemoveGame"), "", Danger: true, Action: async () =>
+            entries.Add(new(Strings.Get("RemoveGame"), "", Action: async () =>
             {
                 if (_session?.Game.Id == game.Id) return;
-                if (!await ConfirmAsync(Strings.Get("RemoveGame"), Strings.Format("RemoveGameBody", game.Title), Strings.Get("Remove"))) return;
+                if (await AlertAsync(Strings.Get("RemoveGame"), Strings.Format("RemoveGameBody", game.Title), null,
+                        Strings.Get("Remove"), Strings.Get("Cancel")) != 0) return;
                 _prefs.Manual.RemoveAll(entry => entry.Id == game.Id);
                 _prefs.Art.Remove(game.Id);
                 _prefs.Played.Remove(game.Id);
                 Save();
                 await LoadLibraryAsync();
             }));
-        var card = _selected >= 0 && _selected < _cards.Count ? _cards[_selected] : null;
-        // A popup on the card itself, not a dialog over the whole home.
-        OpenPicker(LibraryOrder.DisplayTitle(game, _prefs.Art.GetValueOrDefault(game.Id)), SourceLabel(game.Source), options,
-            card ?? origin, anchor: card);
+        var card = _selected >= 0 && _selected < _tiles.Count ? _tiles[_selected].Card : origin;
+        OpenMenu(entries, card, card);
     }
+
+    // ───────── Context menu ─────────
+
+    /// <summary>A tvOS context menu beside <paramref name="anchor"/>, or in the middle without one.</summary>
+    private void OpenMenu(IReadOnlyList<MenuEntry> entries, FrameworkElement? anchor, Control? origin)
+    {
+        if (AlertOpen) return;
+        _menuOrigin = origin;
+        MenuItems.Children.Clear();
+        Button? first = null, chosen = null;
+        var indent = entries.Any(entry => entry.Glyph.Length > 0 || entry.Checked);
+        foreach (var entry in entries)
+        {
+            if (entry.Label is null)
+            {
+                MenuItems.Children.Add(new Border { Height = 10, Margin = new Thickness(-10, 4, -10, 4), Background = ThemeManager.Brush("SeparatorBrush"), Opacity = 0.35 });
+                continue;
+            }
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(indent ? 70 : 24) });
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            var glyph = entry.Checked ? "" : entry.Glyph;
+            if (glyph.Length > 0)
+                row.Children.Add(new FontIcon { Glyph = glyph, FontSize = 22, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+            var label = new TextBlock { Text = entry.Label, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+            Grid.SetColumn(label, 1);
+            row.Children.Add(label);
+            var button = new Button { Style = ThemeManager.Style("TvMenuItem"), Content = row };
+            AutomationProperties.SetName(button, entry.Label);
+            if (entry.Checked) AutomationProperties.SetItemStatus(button, Strings.Get("Selected"));
+            button.Click += async (_, _) =>
+            {
+                Sounds.Play(UiSound.Confirm);
+                CloseMenu(restoreFocus: true);
+                if (entry.Action is not null) await RunAsync(entry.Action);
+            };
+            MenuItems.Children.Add(button);
+            first ??= button;
+            if (entry.Checked) chosen = button;
+        }
+        PlaceMenu(anchor);
+        MenuLayer.Visibility = Visibility.Visible;
+        Sounds.Play(UiSound.Open);
+        Motion.Fade(MenuPanel, 1, 160, _prefs.ReduceMotion);
+        var target = chosen ?? first;
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => target?.Focus(FocusState.Keyboard));
+    }
+
+    /// <summary>Beside the anchor (to its right, or left when there is no room), never off screen.</summary>
+    private void PlaceMenu(FrameworkElement? anchor)
+    {
+        MenuPanel.Measure(new Windows.Foundation.Size(MenuPanel.Width, double.PositiveInfinity));
+        var height = Math.Min(MenuPanel.DesiredSize.Height, Stage.ActualHeight - 80);
+        if (anchor is null || anchor.ActualWidth <= 0)
+        {
+            MenuPanel.Margin = new Thickness((Stage.ActualWidth - MenuPanel.Width) / 2, (Stage.ActualHeight - height) / 2, 0, 0);
+            return;
+        }
+        var bounds = anchor.TransformToVisual(Stage).TransformBounds(new Windows.Foundation.Rect(0, 0, anchor.ActualWidth, anchor.ActualHeight));
+        if (bounds.Width > MenuPanel.Width * 1.3)
+        {
+            // A settings row: the choices open at its right end, by the value, under the row (above it near the bottom).
+            var x = Math.Clamp(bounds.Right - MenuPanel.Width, 40, Stage.ActualWidth - MenuPanel.Width - 40);
+            var y = bounds.Bottom + 8 + height <= Stage.ActualHeight - 40 ? bounds.Bottom + 8 : Math.Max(40, bounds.Y - height - 8);
+            MenuPanel.Margin = new Thickness(x, y, 0, 0);
+            return;
+        }
+        var gap = 48;
+        var left = bounds.Right + gap;
+        if (left + MenuPanel.Width > Stage.ActualWidth - 40) left = bounds.X - gap - MenuPanel.Width;
+        if (left < 40) left = Math.Clamp(bounds.X, 40, Stage.ActualWidth - MenuPanel.Width - 40);
+        var top = Math.Clamp(bounds.Y + bounds.Height / 2 - height / 2, 40, Math.Max(40, Stage.ActualHeight - height - 40));
+        MenuPanel.Margin = new Thickness(left, top, 0, 0);
+    }
+
+    private void OnMenuBackgroundTapped(object sender, TappedRoutedEventArgs e) => CloseMenu();
+
+    private void OnMenuPanelTapped(object sender, TappedRoutedEventArgs e) => e.Handled = true;
+
+    private void CloseMenu(bool restoreFocus = true)
+    {
+        if (!MenuOpen) return;
+        MenuLayer.Visibility = Visibility.Collapsed;
+        MenuItems.Children.Clear();
+        if (!restoreFocus) return;
+        Sounds.Play(UiSound.Back);
+        var origin = _menuOrigin;
+        _menuOrigin = null;
+        if (origin is not null && origin.Visibility == Visibility.Visible && IsInside(origin, ActiveLayer)) origin.Focus(FocusState.Keyboard);
+        else FocusFirst(ActiveLayer);
+    }
+
+    // ───────── Alert ─────────
+
+    /// <summary>
+    /// A tvOS alert: title, description, optional content (fields, results) and stacked buttons. Returns the index of the
+    /// button chosen, or -1 when dismissed with Back / Esc.
+    /// </summary>
+    private async Task<int> AlertAsync(string title, string body, FrameworkElement? content, params string[] buttons)
+    {
+        if (_alert is not null) return -1;
+        CloseMenu(restoreFocus: false);
+        _alertOrigin = Root.XamlRoot is null ? null : FocusManager.GetFocusedElement(Root.XamlRoot) as Control;
+        AlertTitle.Text = title;
+        AlertBody.Text = body;
+        AlertBody.Visibility = body.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        AlertContent.Content = content;
+        AlertPanel.Width = content is null ? 560 : 760;
+        AlertButtons.Children.Clear();
+        var completion = _alert = new TaskCompletionSource<int>();
+        for (var index = 0; index < buttons.Length; index++)
+        {
+            var choice = index;
+            var button = new Button { Style = ThemeManager.Style("TvAlertButton"), Content = buttons[index] };
+            button.Click += (_, _) =>
+            {
+                Sounds.Play(UiSound.Confirm);
+                completion.TrySetResult(choice);
+            };
+            AlertButtons.Children.Add(button);
+        }
+        AlertLayer.Visibility = Visibility.Visible;
+        Sounds.Play(UiSound.Open);
+        Motion.Fade(AlertPanel, 1, 180, _prefs.ReduceMotion);
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            var first = content is null ? null : FocusManager.FindFirstFocusableElement(AlertContent) as Control;
+            (first ?? AlertButtons.Children.OfType<Button>().FirstOrDefault())?.Focus(FocusState.Keyboard);
+        });
+        try { return await completion.Task; }
+        finally
+        {
+            _alert = null;
+            AlertLayer.Visibility = Visibility.Collapsed;
+            AlertContent.Content = null;
+            AlertButtons.Children.Clear();
+            var origin = _alertOrigin;
+            _alertOrigin = null;
+            if (origin is not null && origin.Visibility == Visibility.Visible && IsInside(origin, ActiveLayer)) origin.Focus(FocusState.Keyboard);
+            else FocusFirst(ActiveLayer);
+        }
+    }
+
+    private void DismissAlert()
+    {
+        if (_alert is null) return;
+        Sounds.Play(UiSound.Back);
+        _alert.TrySetResult(-1);
+    }
+
+    /// <summary>Enables or disables an alert's button (e.g. Apply until a result is picked).</summary>
+    private void SetAlertButtonEnabled(int index, bool enabled)
+    {
+        if (index < AlertButtons.Children.Count && AlertButtons.Children[index] is Button button) button.IsEnabled = enabled;
+    }
+
+    // ───────── Add, edit, search ─────────
 
     private async Task AddGameAsync()
     {
-        if (_activeDialog is not null) return;
+        if (AlertOpen) return;
         await RunAsync(async () =>
         {
             var file = await PickFileAsync(".exe");
@@ -74,11 +239,10 @@ public sealed partial class MainWindow
             var fields = new StackPanel { Spacing = 14 };
             var name = Field(fields, Strings.Get("FieldName"), game.Title);
             var arguments = Field(fields, Strings.Get("FieldArgumentsOptional"), "");
-            if (!await ShowDialogAsync(Strings.Get("AddGame"), fields, Strings.Get("Add"))) return;
+            if (await AlertAsync(Strings.Get("AddGame"), "", fields, Strings.Get("Add"), Strings.Get("Cancel")) != 0) return;
             game.Name = name.Text.Trim();
             game.Arguments = arguments.Text.Trim();
             _prefs.Manual.Add(game);
-            _prefs.Hidden.Remove(game.Id);
             Save();
             await LoadLibraryAsync(select: game.Id);
         });
@@ -92,13 +256,8 @@ public sealed partial class MainWindow
         var arguments = Field(fields, Strings.Get("FieldArguments"), game.Arguments);
         name.IsEnabled = path.IsEnabled = arguments.IsEnabled = game.IsManual;
         var watch = Field(fields, Strings.Get("FieldWatch"), _prefs.Watched.GetValueOrDefault(game.Id, game.WatchProcess));
-        if (!game.IsManual)
-            fields.Children.Insert(0, new TextBlock
-            {
-                Text = Strings.Format("FoundGameNote", SourceLabel(game.Source)), TextWrapping = TextWrapping.Wrap,
-                Foreground = ThemeManager.Brush("TextMutedBrush"), FontSize = 15
-            });
-        if (!await ShowDialogAsync(Strings.Get("EditGame"), fields, Strings.Get("Save"))) return;
+        var body = game.IsManual ? "" : Strings.Format("FoundGameNote", SourceLabel(game.Source));
+        if (await AlertAsync(Strings.Get("EditGame"), body, fields, Strings.Get("Save"), Strings.Get("Cancel")) != 0) return;
         if (game.IsManual)
         {
             var executable = path.Text.Trim().Trim('"');
@@ -117,91 +276,104 @@ public sealed partial class MainWindow
         await LoadLibraryAsync(select: game.Id);
     }
 
-    /// <summary>Search the catalog by another title, preview cover and background, and apply on confirm.</summary>
+    /// <summary>Search the catalog by another title, preview logo and background, and apply on confirm.</summary>
     private async Task SearchArtworkAsync(Game game)
     {
         _artworkLookup?.Cancel();
-        var panel = new StackPanel { Spacing = 14, Width = 560 };
-        var query = Field(panel, Strings.Get("FieldSearchTitle"), LibraryOrder.SearchTitle(game, _prefs.Art.GetValueOrDefault(game.Id)));
-        var search = new Button { Content = Strings.Get("Search"), Style = ThemeManager.Style("DialogButton"), HorizontalAlignment = HorizontalAlignment.Left };
-        var message = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = ThemeManager.Brush("TextMutedBrush"), FontSize = 15 };
-        var results = new ListView { MinHeight = 60, MaxHeight = 220, SelectionMode = ListViewSelectionMode.Single };
-        var previewTitle = new TextBlock { FontSize = 17, TextWrapping = TextWrapping.Wrap, Foreground = ThemeManager.Brush("TextBrush") };
-        var media = new Grid { ColumnSpacing = 14, Height = 150 };
-        media.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
-        media.ColumnDefinitions.Add(new ColumnDefinition());
-        var coverImage = PreviewImage(media, 0);
-        var backgroundImage = PreviewImage(media, 1);
-        var preview = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
-        preview.Children.Add(previewTitle);
-        preview.Children.Add(media);
-        panel.Children.Add(search);
+        var panel = new StackPanel { Spacing = 16 };
+        var queryRow = new Grid { ColumnSpacing = 14 };
+        queryRow.ColumnDefinitions.Add(new ColumnDefinition());
+        queryRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var query = new TextBox
+        {
+            Style = ThemeManager.Style("TvTextField"), Text = LibraryOrder.SearchTitle(game, _prefs.Art.GetValueOrDefault(game.Id)),
+            PlaceholderText = Strings.Get("FieldSearchTitle")
+        };
+        queryRow.Children.Add(query);
+        var search = new Button { Style = ThemeManager.Style("TvAlertButton"), Content = Strings.Get("Search"), Width = 180 };
+        Grid.SetColumn(search, 1);
+        queryRow.Children.Add(search);
+        panel.Children.Add(queryRow);
+        var message = new TextBlock { FontSize = 23, TextWrapping = TextWrapping.Wrap, Foreground = ThemeManager.Brush("TextSecondaryBrush") };
         panel.Children.Add(message);
-        panel.Children.Add(results);
+        var results = new StackPanel { Spacing = 4 };
+        panel.Children.Add(new ScrollViewer { Content = results, MaxHeight = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, IsTabStop = false });
+        var preview = new Grid { Height = 180, CornerRadius = new CornerRadius(30), Visibility = Visibility.Collapsed, Background = ThemeManager.Brush("ControlBrush") };
+        var previewBackground = new Image { Stretch = Stretch.UniformToFill };
+        var previewLogo = new Image { Stretch = Stretch.Uniform, Margin = new Thickness(40, 24, 40, 24) };
+        var previewLabel = new TextBlock
+        {
+            FontSize = 23, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Margin = new Thickness(20, 0, 20, 14),
+            VerticalAlignment = VerticalAlignment.Bottom, Foreground = new SolidColorBrush(Microsoft.UI.Colors.White)
+        };
+        preview.Children.Add(previewBackground);
+        preview.Children.Add(previewLogo);
+        preview.Children.Add(previewLabel);
         panel.Children.Add(preview);
 
         using var cancellation = new CancellationTokenSource();
         CancellationTokenSource? previewRequest = null;
-        (CatalogMatch Match, CatalogEntry Entry, string? Cover, string? Background)? chosen = null;
-        var dialog = CreateDialog(Strings.Get("SearchArtwork"), panel, Strings.Get("Apply"));
-        dialog.IsPrimaryButtonEnabled = false;
+        (CatalogMatch Match, CatalogEntry Entry, CatalogFiles Files)? chosen = null;
 
         void Discard()
         {
-            if (chosen is { } old)
-            {
-                if (old.Cover is not null) File.Delete(old.Cover);
-                if (old.Background is not null) File.Delete(old.Background);
-            }
+            chosen?.Files.Dispose();
             chosen = null;
         }
 
-        results.SelectionChanged += async (_, _) =>
+        async Task Pick(CatalogMatch match)
         {
             previewRequest?.Cancel();
-            dialog.IsPrimaryButtonEnabled = false;
-            coverImage.Source = backgroundImage.Source = null;
-            Discard();
-            if (results.SelectedItem is not CatalogMatch match) { preview.Visibility = Visibility.Collapsed; return; }
             var request = previewRequest = CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token);
+            SetAlertButtonEnabled(0, false);
+            Discard();
             preview.Visibility = Visibility.Visible;
-            previewTitle.Text = Strings.Get("LoadingPreview");
+            previewBackground.Source = previewLogo.Source = null;
+            previewLabel.Text = Strings.Get("LoadingPreview");
             try
             {
                 var entry = await _catalog.GetAsync(match, Strings.Language, request.Token);
-                var cover = await TryDownload(entry.Cover, request.Token);
-                var background = await TryDownload(entry.Background, request.Token);
-                if (request.IsCancellationRequested)
-                {
-                    if (cover is not null) File.Delete(cover);
-                    if (background is not null) File.Delete(background);
-                    return;
-                }
-                chosen = (match, entry, cover, background);
-                coverImage.Source = LoadImage(cover, 300);
-                backgroundImage.Source = LoadImage(background, 800);
-                previewTitle.Text = match.Label;
-                dialog.IsPrimaryButtonEnabled = true;
+                var files = await DownloadAllAsync(entry, request.Token);
+                if (request.IsCancellationRequested) { files.Dispose(); return; }
+                chosen = (match, entry, files);
+                previewBackground.Source = LoadImage(files.Background ?? files.Banner ?? files.Cover, 900);
+                previewLogo.Source = LoadImage(files.Logo, 600);
+                previewLabel.Text = files.Logo is null ? match.Label : match.Platform;
+                SetAlertButtonEnabled(0, true);
             }
             catch (OperationCanceledException) { }
-            catch (Exception ex) { previewTitle.Text = Strings.Format("PreviewFailed", ex.Message); }
-        };
+            catch (Exception ex) { previewLabel.Text = Strings.Format("PreviewFailed", ex.Message); }
+        }
+
         async Task Search()
         {
             search.IsEnabled = false;
-            results.ItemsSource = null;
+            results.Children.Clear();
             message.Text = Strings.Get("Searching");
             try
             {
                 var found = await _catalog.SearchAsync(query.Text.Trim(), cancellation.Token);
-                results.ItemsSource = found;
                 message.Text = found.Count > 0 ? Strings.Get("PickResult") : Strings.Get("NoResults");
-                if (found.Count == 1) results.SelectedIndex = 0;
+                foreach (var match in found)
+                {
+                    var item = new Button { Style = ThemeManager.Style("TvListItem"), MinHeight = 60 };
+                    var line = new Grid();
+                    line.ColumnDefinitions.Add(new ColumnDefinition());
+                    line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    line.Children.Add(new TextBlock { Text = match.Title, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+                    var platform = new TextBlock { Text = match.Platform, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0) };
+                    Grid.SetColumn(platform, 1);
+                    line.Children.Add(platform);
+                    item.Content = line;
+                    item.Click += async (_, _) => await Pick(match);
+                    results.Children.Add(item);
+                }
             }
             catch (OperationCanceledException) { }
             catch (Exception ex) { message.Text = Strings.Format("SearchFailed", ex.Message); }
             finally { search.IsEnabled = true; }
         }
+
         search.Click += async (_, _) => await Search();
         query.KeyDown += async (_, args) =>
         {
@@ -209,27 +381,18 @@ public sealed partial class MainWindow
             args.Handled = true;
             await Search();
         };
-        dialog.Opened += async (_, _) => await Search();
-        var apply = await ShowDialogAsync(dialog);
+        var alert = AlertAsync(Strings.Get("SearchArtwork"), "", panel, Strings.Get("Apply"), Strings.Get("Cancel"));
+        SetAlertButtonEnabled(0, false);
+        _ = Search();
+        var answer = await alert;
         cancellation.Cancel();
-        coverImage.Source = backgroundImage.Source = null;
-        if (apply && chosen is { } pick)
+        previewBackground.Source = previewLogo.Source = null;
+        if (answer == 0 && chosen is { } pick)
         {
-            try { ApplyArtwork(game, pick.Match, pick.Entry, pick.Cover, pick.Background); }
+            try { ApplyArtwork(game, pick.Match, pick.Entry, pick.Files); }
             finally { Discard(); }
         }
         else Discard();
-    }
-
-    private static Image PreviewImage(Grid grid, int column)
-    {
-        var frame = new Grid { Background = ThemeManager.Brush("SurfaceBrush") };
-        Corners.SetSize(frame, CornerSize.Small);
-        var image = new Image { Stretch = Stretch.UniformToFill };
-        frame.Children.Add(image);
-        Grid.SetColumn(frame, column);
-        grid.Children.Add(frame);
-        return image;
     }
 
     private async Task<string?> PickFileAsync(params string[] extensions)
@@ -248,47 +411,15 @@ public sealed partial class MainWindow
         return (await picker.PickSingleFolderAsync())?.Path;
     }
 
+    /// <summary>A labelled tvOS text field.</summary>
     private static TextBox Field(Panel panel, string title, string value)
     {
-        var field = new TextBox { Header = title, Text = value, Style = ThemeManager.Style("TextField") };
+        var label = new TextBlock { Text = title, FontSize = 23, FontWeight = Microsoft.UI.Text.FontWeights.Medium, Foreground = ThemeManager.Brush("TextSecondaryBrush"), Margin = new Thickness(6, 4, 0, -6) };
+        panel.Children.Add(label);
+        var field = new TextBox { Text = value, Style = ThemeManager.Style("TvTextField") };
+        AutomationProperties.SetName(field, title);
         panel.Children.Add(field);
         return field;
-    }
-
-    // ───────── Dialogs ─────────
-
-    private ContentDialog CreateDialog(string title, object content, string confirm)
-    {
-        var dialog = new ContentDialog
-        {
-            XamlRoot = Root.XamlRoot, Title = title, Content = content, PrimaryButtonText = confirm,
-            CloseButtonText = Strings.Get("Cancel"), DefaultButton = ContentDialogButton.None,
-            RequestedTheme = ThemeManager.ElementTheme,
-            PrimaryButtonStyle = ThemeManager.Style("DialogPrimaryButton"),
-            CloseButtonStyle = ThemeManager.Style("DialogButton"),
-            FontFamily = (FontFamily)Application.Current.Resources["AppFont"]
-        };
-        Corners.SetSize(dialog, CornerSize.Large);
-        return dialog;
-    }
-
-    private Task<bool> ShowDialogAsync(string title, FrameworkElement content, string confirm) =>
-        ShowDialogAsync(CreateDialog(title, content, confirm));
-
-    private Task<bool> ConfirmAsync(string title, string body, string confirm) =>
-        ShowDialogAsync(CreateDialog(title, new TextBlock { Text = body, TextWrapping = TextWrapping.Wrap, FontSize = 17, MaxWidth = 520 }, confirm));
-
-    private async Task<bool> ShowDialogAsync(ContentDialog dialog)
-    {
-        if (_activeDialog is not null || Root.XamlRoot is null) return false;
-        _activeDialog = dialog;
-        Sounds.Play(UiSound.Open);
-        try { return await dialog.ShowAsync() == ContentDialogResult.Primary; }
-        finally
-        {
-            _activeDialog = null;
-            Sounds.Play(UiSound.Back);
-        }
     }
 
     private async Task RunAsync(Func<Task> action)
@@ -301,121 +432,10 @@ public sealed partial class MainWindow
         }
     }
 
-    // ───────── Picker ─────────
-
-    private void OpenPicker(string title, string subtitle, IReadOnlyList<PickerOption> options, Control? origin, FrameworkElement? anchor = null)
-    {
-        if (_activeDialog is not null) return;
-        _pickerOrigin = origin;
-        var popup = anchor is not null;
-        PickerTitle.FontSize = popup ? 22 : 32;
-        PickerPanel.Width = popup ? 440 : 760;
-        PickerPanel.Padding = popup ? new Thickness(18, 18, 18, 18) : new Thickness(32, 30, 32, 30);
-        Picker.Background = popup ? new SolidColorBrush(Microsoft.UI.Colors.Transparent) : ThemeManager.Brush("DimBrush");
-        // A card's popup is just its menu: the game's name is already on the card and in the hero.
-        PickerTitle.Text = title;
-        PickerTitle.Visibility = popup ? Visibility.Collapsed : Visibility.Visible;
-        PickerSubtitle.Text = subtitle;
-        PickerSubtitle.Visibility = !popup && subtitle.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        PickerHeader.Visibility = PickerTitle.Visibility;
-        PickerGrid.RowSpacing = popup ? 0 : 20;
-        PickerOptions.Spacing = popup ? 6 : 10;
-        PickerOptions.Children.Clear();
-        Button? first = null, selected = null;
-        // The icon column only when some option has an icon, so plain choices line up with the title.
-        var iconColumn = options.Any(option => option.Glyph.Length > 0);
-        foreach (var option in options)
-        {
-            var row = new Grid { ColumnSpacing = iconColumn ? 18 : 0 };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(iconColumn ? 24 : 0) });
-            row.ColumnDefinitions.Add(new ColumnDefinition());
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
-            var foreground = ThemeManager.Brush(option.Danger ? "AccentBrush" : "TextBrush");
-            if (option.Glyph.Length > 0)
-                row.Children.Add(new FontIcon { Glyph = option.Glyph, FontSize = 20, VerticalAlignment = VerticalAlignment.Center, Foreground = foreground });
-            var label = new TextBlock
-            {
-                Text = option.Label, FontSize = 20, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
-                Foreground = foreground
-            };
-            Grid.SetColumn(label, 1);
-            row.Children.Add(label);
-            if (option.Selected)
-            {
-                var check = new FontIcon { Glyph = "", FontSize = 20, VerticalAlignment = VerticalAlignment.Center, Foreground = ThemeManager.Brush("AccentBrush") };
-                Grid.SetColumn(check, 2);
-                row.Children.Add(check);
-            }
-            var button = new Button { Style = ThemeManager.Style("OptionButton"), Content = row };
-            if (popup)
-            {
-                button.Height = 52;
-                label.FontSize = 18;
-            }
-            AutomationProperties.SetName(button, option.Label);
-            if (option.Selected) AutomationProperties.SetItemStatus(button, Strings.Get("Selected"));
-            button.Click += async (_, _) =>
-            {
-                Sounds.Play(UiSound.Confirm);
-                ClosePicker(restoreFocus: true);
-                if (option.Action is not null) await RunAsync(option.Action);
-            };
-            PickerOptions.Children.Add(button);
-            first ??= button;
-            if (option.Selected) selected = button;
-        }
-        PlacePickerPanel(anchor);
-        Picker.Visibility = Visibility.Visible;
-        Sounds.Play(UiSound.Open);
-        Motion.Fade(Picker, 1, 160, _prefs.ReduceMotion);
-        var target = selected ?? first;
-        DispatcherQueue.TryEnqueue(() => target?.Focus(_input.Mode == Core.Input.InputMode.Controller ? FocusState.Keyboard : FocusState.Programmatic));
-    }
-
-    /// <summary>In the middle of the screen, or just above the card it belongs to (below it when there is no room).</summary>
-    private void PlacePickerPanel(FrameworkElement? anchor)
-    {
-        if (anchor is null || anchor.ActualWidth <= 0)
-        {
-            PickerPanel.HorizontalAlignment = HorizontalAlignment.Center;
-            PickerPanel.VerticalAlignment = VerticalAlignment.Center;
-            PickerPanel.Margin = new Thickness(0);
-            return;
-        }
-        var bounds = anchor.TransformToVisual(Stage).TransformBounds(new Windows.Foundation.Rect(0, 0, anchor.ActualWidth, anchor.ActualHeight));
-        PickerPanel.Measure(new Windows.Foundation.Size(PickerPanel.Width, double.PositiveInfinity));
-        var height = PickerPanel.DesiredSize.Height;
-        var left = Math.Clamp(bounds.X, 24, Math.Max(24, Stage.ActualWidth - PickerPanel.Width - 24));
-        var top = bounds.Y - height - 16;
-        if (top < 24) top = Math.Min(bounds.Bottom + 16, Math.Max(24, Stage.ActualHeight - height - 24));
-        PickerPanel.HorizontalAlignment = HorizontalAlignment.Left;
-        PickerPanel.VerticalAlignment = VerticalAlignment.Top;
-        PickerPanel.Margin = new Thickness(left, top, 0, 0);
-    }
-
-    /// <summary>A click outside the popup closes it.</summary>
-    private void OnPickerBackgroundTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e) => ClosePicker();
-
-    private void OnPickerPanelTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e) => e.Handled = true;
-
-    private void ClosePicker(bool restoreFocus = true)
-    {
-        if (Picker.Visibility != Visibility.Visible) return;
-        Picker.Visibility = Visibility.Collapsed;
-        PickerOptions.Children.Clear();
-        if (!restoreFocus) return;
-        Sounds.Play(UiSound.Back);
-        var origin = _pickerOrigin;
-        _pickerOrigin = null;
-        if (origin is not null && origin.Visibility == Visibility.Visible && IsInside(origin, ActiveLayer))
-            origin.Focus(_input.Mode == Core.Input.InputMode.Controller ? FocusState.Keyboard : FocusState.Programmatic);
-        else FocusFirst(ActiveLayer);
-    }
-
     private void CloseOverlays()
     {
-        _activeDialog?.Hide();
-        ClosePicker(restoreFocus: false);
+        DismissAlert();
+        CloseMenu(restoreFocus: false);
     }
 
     // ───────── Notices ─────────

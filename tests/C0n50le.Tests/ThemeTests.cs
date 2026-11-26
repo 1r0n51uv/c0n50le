@@ -4,61 +4,87 @@ namespace C0n50le.Tests;
 
 public sealed class ThemeTests
 {
-    public static IEnumerable<object[]> Themes => ThemeCatalog.All.Select(theme => new object[] { theme.Id });
+    public static IEnumerable<object[]> Every =>
+        from id in ThemeCatalog.Ids from depth in ThemeCatalog.Depths select new object[] { id, depth };
 
-    private static Argb Opaque(ThemeTokens theme, Argb color) => color.Over(theme.Backdrop);
+    /// <summary>The material as it looks over the worst artwork behind it: black for the dark theme, white for the light.</summary>
+    private static Argb MaterialOver(ThemeTokens theme, Argb behind) => theme.Material.Over(behind);
 
     [Theory]
-    [MemberData(nameof(Themes))]
-    public void Text_is_readable_on_every_surface(string id)
+    [MemberData(nameof(Every))]
+    public void Text_is_readable_on_the_material_over_any_artwork(string id, GlassDepth depth)
     {
-        var theme = ThemeCatalog.Get(id);
-        var surface = Opaque(theme, theme.Surface);
-        Assert.True(Argb.Contrast(theme.Text, surface) >= 7, $"{id}: text on surface");
-        Assert.True(Argb.Contrast(theme.TextMuted, surface) >= 4.5, $"{id}: muted text on surface");
-        Assert.True(Argb.Contrast(theme.Text, Opaque(theme, theme.SurfaceRaised)) >= 7, $"{id}: text on raised surface");
-        Assert.True(Argb.Contrast(theme.OnAccent, theme.Accent) >= 4.5, $"{id}: text on accent");
-        Assert.True(Argb.Contrast(theme.Accent, surface) >= 3, $"{id}: accent on surface");
-        Assert.True(Argb.Contrast(theme.Focus, surface) >= 3, $"{id}: focus ring on surface");
+        var theme = ThemeCatalog.Get(id, depth);
+        // The worst case is artwork the same tone as the text behind see-through glass.
+        var behind = theme.IsLight ? Argb.FromHex("#000000") : Argb.FromHex("#FFFFFF");
+        var worst = MaterialOver(theme, behind.Blend(theme.Backdrop, depth == GlassDepth.Deep ? 0.5 : 0.25));
+        var floor = depth == GlassDepth.Off ? 7 : 3;
+        Assert.True(Argb.Contrast(theme.Text, MaterialOver(theme, theme.Backdrop)) >= 7, $"{id}/{depth}: text on material");
+        Assert.True(Argb.Contrast(theme.Text, worst) >= floor, $"{id}/{depth}: text on glass over artwork ({Argb.Contrast(theme.Text, worst):0.0})");
     }
 
     [Theory]
-    [MemberData(nameof(Themes))]
-    public void Every_theme_has_a_name_in_both_languages(string id)
+    [MemberData(nameof(Every))]
+    public void Focused_platter_reads_black_on_white(string id, GlassDepth depth)
     {
-        var key = ThemeCatalog.Get(id).NameKey;
-        Assert.Contains(key, Core.Localization.Strings.Catalog("it-IT").Keys);
-        Assert.Contains(key, Core.Localization.Strings.Catalog("en-US").Keys);
+        var theme = ThemeCatalog.Get(id, depth);
+        var platter = theme.Focus.Over(theme.Backdrop);
+        Assert.True(Argb.Contrast(theme.FocusText, platter) >= 12, $"{id}/{depth}: focused text");
+        Assert.True(Argb.Contrast(theme.TextSecondary.Over(theme.Backdrop), theme.Backdrop) >= 4.5, $"{id}/{depth}: secondary text");
     }
 
     [Fact]
-    public void Themes_are_five_with_distinct_ids_and_night_first() =>
-        Assert.Equal(["night", "glass", "game", "dawn", "arcade"], ThemeCatalog.All.Select(theme => theme.Id));
-
-    [Fact]
-    public void Unknown_theme_falls_back_to_night() => Assert.Same(ThemeCatalog.Night, ThemeCatalog.Get("neon"));
-
-    [Theory]
-    [InlineData("#FF2A2A")]
-    [InlineData("#2A40FF")]
-    [InlineData("#F4E21A")]
-    [InlineData("#1D7A2C")]
-    public void Artwork_colors_keep_the_accent_readable(string hex)
+    public void Glass_gets_more_see_through_with_depth()
     {
-        foreach (var theme in ThemeCatalog.All.Where(theme => theme.FollowsArtwork))
+        foreach (var id in ThemeCatalog.Ids)
         {
-            var tinted = ThemeCatalog.WithArtwork(theme, Argb.FromHex(hex));
-            Assert.True(Argb.Contrast(tinted.Accent, tinted.Surface.Over(tinted.Backdrop)) >= 4.5, $"{theme.Id} {hex}");
-            Assert.True(Argb.Contrast(tinted.OnAccent, tinted.Accent) >= 4.5, $"{theme.Id} {hex} on accent");
-            Assert.True(Argb.Contrast(tinted.Text, tinted.Surface.Over(tinted.Backdrop)) >= 7, $"{theme.Id} {hex} text");
+            var alphas = ThemeCatalog.Depths.Select(depth => ThemeCatalog.Get(id, depth).Material.A).ToList();
+            Assert.Equal(alphas.OrderByDescending(alpha => alpha), alphas);
+            var sheens = ThemeCatalog.Depths.Select(depth => ThemeCatalog.Get(id, depth).Sheen).ToList();
+            Assert.Equal(sheens.OrderBy(sheen => sheen), sheens);
+            Assert.Equal(0, ThemeCatalog.Get(id, GlassDepth.Off).Sheen);
+            Assert.False(ThemeCatalog.Get(id, GlassDepth.Off).IsGlass);
         }
     }
 
     [Fact]
-    public void Themes_that_do_not_follow_the_artwork_stay_as_they_are()
+    public void Medium_glass_is_the_kits_material()
     {
-        Assert.Same(ThemeCatalog.Night, ThemeCatalog.WithArtwork(ThemeCatalog.Night, Argb.FromHex("#FF0000")));
-        Assert.Same(ThemeCatalog.GameColor, ThemeCatalog.WithArtwork(ThemeCatalog.GameColor, Argb.FromHex("#808080")));
+        Assert.Equal(Argb.FromHex("#801E1E1E"), ThemeCatalog.Dark(GlassDepth.Medium).Material);
+        Assert.Equal(Argb.FromHex("#80FEFDFF"), ThemeCatalog.Light(GlassDepth.Medium).Material);
+    }
+
+    [Fact]
+    public void Only_light_and_dark_exist_and_unknown_values_fall_back()
+    {
+        Assert.Equal(["dark", "light"], ThemeCatalog.Ids);
+        Assert.Equal("dark", ThemeCatalog.Normalize("night"));
+        Assert.Equal("light", ThemeCatalog.Normalize("LIGHT"));
+        Assert.Equal(ThemeCatalog.DefaultGlass, ThemeCatalog.NormalizeGlass(9));
+        Assert.Equal(GlassDepth.Deep, ThemeCatalog.NormalizeGlass(3));
+    }
+
+    [Theory]
+    [MemberData(nameof(Every))]
+    public void Every_theme_and_depth_has_a_name_in_both_languages(string id, GlassDepth depth)
+    {
+        foreach (var language in new[] { "it-IT", "en-US" })
+        {
+            var catalog = Core.Localization.Strings.Catalog(language);
+            Assert.Contains("Theme_" + id, catalog.Keys);
+            Assert.Contains("Glass_" + depth, catalog.Keys);
+        }
+    }
+
+    [Fact]
+    public void Ambient_follows_the_artwork_softly()
+    {
+        var dark = ThemeCatalog.Dark(GlassDepth.Medium);
+        Assert.Equal(dark.Backdrop, ThemeCatalog.Ambient(dark, null));
+        var (_, _, lightness) = ThemeCatalog.Ambient(dark, Argb.FromHex("#FF2A2A")).ToHsl();
+        Assert.InRange(lightness, 0.15, 0.3);
+        var (_, _, lightLightness) = ThemeCatalog.Ambient(ThemeCatalog.Light(GlassDepth.Medium), Argb.FromHex("#FF2A2A")).ToHsl();
+        Assert.InRange(lightLightness, 0.75, 0.9);
     }
 
     [Fact]

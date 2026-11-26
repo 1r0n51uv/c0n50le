@@ -7,15 +7,16 @@ using C0n50le.Core.Localization;
 using C0n50le.Core.Theming;
 using C0n50le.Services;
 using C0n50le.Ui;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace C0n50le;
 
+/// <summary>Settings, like tvOS Settings: a sidebar of categories, rows with their value on the right.</summary>
 public sealed partial class MainWindow
 {
     private static readonly (string Key, string Glyph)[] SystemCategories =
@@ -37,13 +38,13 @@ public sealed partial class MainWindow
     {
         if (SystemPage.Visibility == Visibility.Visible || IsOverlayOpen) return;
         Sounds.Play(UiSound.Open);
-        _hoverTimer?.Stop();
         SystemPage.Visibility = Visibility.Visible;
         HomePage.Visibility = Visibility.Collapsed;
-        Motion.Fade(PageDim, 1, 220, _prefs.ReduceMotion);
+        TopBar.Visibility = HomeHints.Visibility = Visibility.Collapsed;
         PageDim.Opacity = 1;
+        Motion.Fade(PageDim, 1, 220, _prefs.ReduceMotion);
         RenderSystem();
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, FocusCategory);
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, FocusCategory);
     }
 
     private void CloseSystem()
@@ -52,9 +53,11 @@ public sealed partial class MainWindow
         Sounds.Play(UiSound.Back);
         SystemPage.Visibility = Visibility.Collapsed;
         HomePage.Visibility = Visibility.Visible;
+        TopBar.Visibility = Visibility.Visible;
+        HomeHints.Visibility = Home.IsControllerMode ? Visibility.Visible : Visibility.Collapsed;
         Motion.Fade(PageDim, 0, 220, _prefs.ReduceMotion);
         _padName = _padButtons = null;
-        DispatcherQueue.TryEnqueue(FocusSelection);
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, FocusSelection);
     }
 
     private void OnSystemBackClick(object sender, RoutedEventArgs e) => CloseSystem();
@@ -72,16 +75,17 @@ public sealed partial class MainWindow
 
     private void FocusCategory()
     {
-        if (Categories.Children.Count > _category && Categories.Children[_category] is Button button)
-            button.Focus(_input.Mode == InputMode.Controller ? FocusState.Keyboard : FocusState.Programmatic);
+        if (Categories.Children.Count > _category && Categories.Children[_category] is Button button) button.Focus(FocusState.Keyboard);
     }
 
     private void RenderSystem()
     {
+        SystemTitle.Text = Strings.Get("System");
         RenderCategories();
         RenderRows();
     }
 
+    /// <summary>The sidebar: a glyph in a circle and the name; the chosen category stays bright.</summary>
     private void RenderCategories()
     {
         Categories.Children.Clear();
@@ -90,68 +94,49 @@ public sealed partial class MainWindow
             var position = index;
             var (key, glyph) = SystemCategories[index];
             var selected = index == _category;
-            var row = new Grid { ColumnSpacing = 16 };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+            var row = new Grid { ColumnSpacing = 18 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
             row.ColumnDefinitions.Add(new ColumnDefinition());
-            var indicator = new Border
-            {
-                Width = 4, Height = 28, CornerRadius = new CornerRadius(2), VerticalAlignment = VerticalAlignment.Center,
-                Background = ThemeManager.Brush("AccentBrush"), Opacity = selected ? 1 : 0
-            };
-            row.Children.Add(indicator);
-            var icon = new FontIcon
-            {
-                Glyph = glyph, FontSize = 22, VerticalAlignment = VerticalAlignment.Center,
-                Foreground = ThemeManager.Brush(selected ? "AccentBrush" : "TextMutedBrush")
-            };
-            Grid.SetColumn(icon, 1);
-            row.Children.Add(icon);
-            var label = new TextBlock
-            {
-                Text = Strings.Get(key), FontSize = 20, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
-                FontWeight = selected ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
-                Foreground = ThemeManager.Brush("TextBrush")
-            };
-            Grid.SetColumn(label, 2);
+            var circle = new Grid { Width = 44, Height = 44, CornerRadius = new CornerRadius(22), Background = ThemeManager.Brush("GlyphCircleBrush") };
+            circle.Children.Add(new FontIcon { Glyph = glyph, FontSize = 20, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+            row.Children.Add(circle);
+            var label = new TextBlock { Text = Strings.Get(key), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+            Grid.SetColumn(label, 1);
             row.Children.Add(label);
-            var button = new Button
-            {
-                Style = ThemeManager.Style("CategoryButton"), Content = row,
-                Background = selected ? ThemeManager.Brush("TonalBrush") : new SolidColorBrush(Microsoft.UI.Colors.Transparent)
-            };
+            var button = new Button { Style = ThemeManager.Style("TvListItem"), Content = row, Padding = new Thickness(14, 0, 20, 0), Opacity = selected ? 1 : 0.62 };
             AutomationProperties.SetName(button, Strings.Get(key));
             if (selected) AutomationProperties.SetItemStatus(button, Strings.Get("Selected"));
-            // Moving over a category shows its options, like a console's settings.
+            // Moving over a category shows its settings, like tvOS.
             button.GotFocus += (_, _) =>
             {
+                button.Opacity = 1;
                 if (_category == position) return;
                 _category = position;
                 RenderSystem();
                 FocusCategory();
             };
+            button.LostFocus += (_, _) => button.Opacity = _category == position ? 1 : 0.62;
             button.Click += (_, _) =>
             {
-                _category = position;
                 Sounds.Play(UiSound.Confirm);
-                if (Rows.Children.OfType<Button>().FirstOrDefault() is { } first)
-                    first.Focus(_input.Mode == InputMode.Controller ? FocusState.Keyboard : FocusState.Programmatic);
+                Rows.Children.OfType<Button>().FirstOrDefault()?.Focus(FocusState.Keyboard);
             };
             button.KeyDown += (_, args) =>
             {
                 if (args.Key != Windows.System.VirtualKey.Right) return;
-                if (Rows.Children.OfType<Button>().FirstOrDefault() is { } first) first.Focus(FocusState.Keyboard);
+                Rows.Children.OfType<Button>().FirstOrDefault()?.Focus(FocusState.Keyboard);
                 args.Handled = true;
             };
             Categories.Children.Add(button);
         }
     }
 
-    /// <summary>Redraws the rows and puts the focus back on the row it was on.</summary>
     private void RenderRows(int? focusRow = null)
     {
         Rows.Children.Clear();
         _padName = _padButtons = null;
+        CategoryTitle.Text = Strings.Get(SystemCategories[_category].Key);
+        RowFooter.Text = "";
         switch (SystemCategories[_category].Key)
         {
             case "CategoryLibrary": LibraryRows(); break;
@@ -164,8 +149,8 @@ public sealed partial class MainWindow
             case "CategoryLanguage": LanguageRows(); break;
         }
         RowsScroll.ChangeView(null, 0, null, true);
-        if (focusRow is { } index && index < Rows.Children.Count && Rows.Children[index] is Button button)
-            button.Focus(_input.Mode == InputMode.Controller ? FocusState.Keyboard : FocusState.Programmatic);
+        if (focusRow is { } index && index >= 0 && index < Rows.Children.Count && Rows.Children[index] is Button button)
+            button.Focus(FocusState.Keyboard);
     }
 
     private int FocusedRow()
@@ -180,10 +165,10 @@ public sealed partial class MainWindow
 
     private void LibraryRows()
     {
-        var folder = _prefs.GamesFolder.Length > 0 ? _prefs.GamesFolder : Strings.Get("NotSet");
+        var folder = _prefs.GamesFolder.Length > 0 ? Path.GetFileName(_prefs.GamesFolder.TrimEnd('\\')) : Strings.Get("NotSet");
         ActionRow("GamesFolder", "GamesFolderBody", folder, () =>
         {
-            var options = new List<PickerOption>
+            var entries = new List<MenuEntry>
             {
                 new(Strings.Get("ChooseFolder"), "", Action: async () =>
                 {
@@ -195,14 +180,14 @@ public sealed partial class MainWindow
                 })
             };
             if (_prefs.GamesFolder.Length > 0)
-                options.Add(new(Strings.Get("ClearFolder"), "", Action: async () =>
+                entries.Add(new(Strings.Get("ClearFolder"), "", Action: async () =>
                 {
                     _prefs.GamesFolder = "";
                     Save();
                     Rerender();
                     await LoadLibraryAsync();
                 }));
-            OpenPicker(Strings.Get("GamesFolder"), folder, options, FocusedButton());
+            OpenMenu(entries, FocusedButton(), FocusedButton());
             return Task.CompletedTask;
         });
         ActionRow("AddGame", "AddGameBody", "", AddGameAsync);
@@ -219,7 +204,7 @@ public sealed partial class MainWindow
         ActionRow("HiddenGames", "HiddenGamesBody", hidden.Count.ToString(), () =>
         {
             if (hidden.Count == 0) { ShowToast(Strings.Get("NoHiddenGames")); return Task.CompletedTask; }
-            var options = hidden.Select(game => new PickerOption(LibraryOrder.DisplayTitle(game, _prefs.Art.GetValueOrDefault(game.Id)), "",
+            var entries = hidden.Select(game => new MenuEntry(LibraryOrder.DisplayTitle(game, _prefs.Art.GetValueOrDefault(game.Id)), "",
                 Action: async () =>
                 {
                     _prefs.Hidden.Remove(game.Id);
@@ -227,15 +212,14 @@ public sealed partial class MainWindow
                     await LoadLibraryAsync();
                     Rerender();
                 })).ToList();
-            OpenPicker(Strings.Get("HiddenGames"), Strings.Get("ShowAgain"), options, FocusedButton());
+            OpenMenu(entries, FocusedButton(), FocusedButton());
             return Task.CompletedTask;
         });
     }
 
     private void ScreenRows()
     {
-        var displays = Displays.Choices((number, primary, size) =>
-            Strings.Format(primary ? "ScreenPrimary" : "ScreenNumber", number, size));
+        var displays = Displays.Choices((number, primary, size) => Strings.Format(primary ? "ScreenPrimary" : "ScreenNumber", number, size));
         var current = displays.FindIndex(display => display.Id == _prefs.Screen);
         var currentLabel = current >= 0 ? displays[current].Label : Strings.Get("ScreenAutomatic");
         Choice("HomeScreen", "HomeScreenBody", currentLabel,
@@ -276,8 +260,8 @@ public sealed partial class MainWindow
     {
         if (_padName is null || _padButtons is null) return;
         _padName.Text = pad.Connected ? pad.Name : Strings.Get("NoController");
-        _padButtons.Text = pad.Held == 0 ? Strings.Get("ControllerTestIdle") : ButtonGlyphs.Combination(pad.Held, pad.Family) is { Length: > 0 } text
-            ? text : DirectionText(pad.Held);
+        _padButtons.Text = pad.Held == 0 ? Strings.Get("ControllerTestIdle")
+            : ButtonGlyphs.Combination(pad.Held, pad.Family) is { Length: > 0 } text ? text : DirectionText(pad.Held);
     }
 
     private static string DirectionText(int held) => string.Join(" ", new[]
@@ -288,19 +272,22 @@ public sealed partial class MainWindow
 
     private void LookRows()
     {
-        var themes = ThemeCatalog.All;
-        var names = themes.Select(theme => Strings.Get(theme.NameKey)).ToArray();
-        var current = themes.ToList().FindIndex(theme => theme.Id == _prefs.Theme);
-        Choice("Theme", "ThemeBody", names[Math.Max(0, current)], names, current, index =>
+        var themes = ThemeCatalog.Ids;
+        var themeNames = themes.Select(id => Strings.Get("Theme_" + id)).ToArray();
+        var currentTheme = themes.ToList().IndexOf(_prefs.Theme);
+        Choice("Theme", "ThemeBody", themeNames[Math.Max(0, currentTheme)], themeNames, currentTheme, index =>
         {
-            _prefs.Theme = themes[index].Id;
+            _prefs.Theme = themes[index];
             ApplyTheme();
         });
-        Toggle("ShowSystemCard", "ShowSystemCardBody", _prefs.ShowSystemCard, on =>
+        var depths = ThemeCatalog.Depths;
+        var depthNames = depths.Select(depth => Strings.Get("Glass_" + depth)).ToArray();
+        Choice("LiquidGlass", "LiquidGlassBody", depthNames[Math.Clamp(_prefs.Glass, 0, depths.Count - 1)], depthNames, _prefs.Glass, index =>
         {
-            _prefs.ShowSystemCard = on;
-            if (_systemCard is not null) _systemCard.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            _prefs.Glass = (int)depths[index];
+            ApplyTheme();
         });
+        Toggle("ShowSystemCard", "ShowSystemCardBody", _prefs.ShowSystemCard, on => { _prefs.ShowSystemCard = on; RenderCards(); });
         Toggle("ReduceMotion", "ReduceMotionBody", _prefs.ReduceMotion, on => { _prefs.ReduceMotion = on; Motion.Reduce = on; });
         Toggle("InterfaceSounds", "InterfaceSoundsBody", _prefs.Sounds, on => { _prefs.Sounds = on; Sounds.Enabled = on; });
         Toggle("HomeMusic", "HomeMusicBody", _prefs.Music, on => { _prefs.Music = on; UpdateMusic(IsForeground); });
@@ -308,7 +295,7 @@ public sealed partial class MainWindow
         ActionRow("TourAgain", "TourAgainBody", "", () =>
         {
             CloseSystem();
-            DispatcherQueue.TryEnqueue(() => StartTour(force: true));
+            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => StartTour(force: true));
             return Task.CompletedTask;
         });
     }
@@ -325,7 +312,8 @@ public sealed partial class MainWindow
         ActionRow("BackToDesktop", "BackToDesktopBody", "", () => { HideHome(); return Task.CompletedTask; });
         ActionRow("ExitApp", "ExitAppBody", "", async () =>
         {
-            if (_session is not null && !await ConfirmAsync(Strings.Get("ExitApp"), Strings.Get("ExitWhileRunning"), Strings.Get("ExitApp"))) return;
+            if (_session is not null && await AlertAsync(Strings.Get("ExitApp"), Strings.Get("ExitWhileRunning"), null,
+                    Strings.Get("ExitApp"), Strings.Get("Cancel")) != 0) return;
             ExitApp();
         });
     }
@@ -375,71 +363,41 @@ public sealed partial class MainWindow
 
     // ───────── Rows ─────────
 
-    /// <summary>Label and description on the left, the value on the right: the same row for every kind of setting.</summary>
-    private Button Row(string titleKey, string bodyKey, FrameworkElement? value, bool chevron)
+    /// <summary>
+    /// A settings row like tvOS: the name on the left, the value on the right in secondary text. Its description shows
+    /// under the list while it is focused, so the rows stay one line.
+    /// </summary>
+    private Button Row(string titleKey, string bodyKey, string value, bool chevron)
     {
-        var grid = new Grid { ColumnSpacing = 24 };
+        var grid = new Grid { ColumnSpacing = 20 };
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var text = new StackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock
-        {
-            Text = Strings.Get(titleKey), FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            TextWrapping = TextWrapping.Wrap, Foreground = ThemeManager.Brush("TextBrush")
-        });
-        if (bodyKey.Length > 0)
-            text.Children.Add(new TextBlock
-            {
-                Text = Strings.Get(bodyKey), FontSize = 15, LineHeight = 21, TextWrapping = TextWrapping.Wrap, MaxLines = 3,
-                TextTrimming = TextTrimming.CharacterEllipsis, Foreground = ThemeManager.Brush("TextMutedBrush")
-            });
-        grid.Children.Add(text);
+        grid.Children.Add(new TextBlock { Text = Strings.Get(titleKey), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
         var right = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14, VerticalAlignment = VerticalAlignment.Center };
-        if (value is not null) right.Children.Add(value);
-        if (chevron)
-            right.Children.Add(new FontIcon { Glyph = "", FontSize = 16, VerticalAlignment = VerticalAlignment.Center, Foreground = ThemeManager.Brush("TextMutedBrush") });
+        var valueText = new TextBlock
+        {
+            Text = value, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 460, TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        right.Children.Add(valueText);
+        if (chevron) right.Children.Add(new FontIcon { Glyph = "", FontSize = 18, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center });
         Grid.SetColumn(right, 1);
         grid.Children.Add(right);
-        var button = new Button { Style = ThemeManager.Style("RowButton"), Content = grid };
+        var button = new Button { Style = ThemeManager.Style("TvListItem"), Content = grid, Padding = new Thickness(28, 0, 28, 0), Tag = valueText };
         AutomationProperties.SetName(button, Strings.Get(titleKey));
-        button.GotFocus += (_, _) => button.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.4, AnimationDesired = !_prefs.ReduceMotion });
+        AutomationProperties.SetHelpText(button, bodyKey.Length > 0 ? Strings.Get(bodyKey) : "");
+        button.GotFocus += (_, _) =>
+        {
+            RowFooter.Text = bodyKey.Length > 0 ? Strings.Get(bodyKey) : "";
+            button.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.4, AnimationDesired = !_prefs.ReduceMotion });
+        };
         Rows.Children.Add(button);
         return button;
     }
 
-    private static TextBlock ValueText(string value) => new()
-    {
-        Text = value, FontSize = 19, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center,
-        TextAlignment = TextAlignment.Right, MaxWidth = 460, TextTrimming = TextTrimming.CharacterEllipsis,
-        Foreground = ThemeManager.Brush("AccentBrush")
-    };
-
+    /// <summary>On/off as text, as tvOS Settings does: pressing it switches.</summary>
     private void Toggle(string titleKey, string bodyKey, bool on, Action<bool> change)
     {
-        var track = new Border
-        {
-            Width = 56, Height = 32, BorderThickness = new Thickness(on ? 0 : 2), VerticalAlignment = VerticalAlignment.Center,
-            Background = on ? ThemeManager.Brush("AccentBrush") : new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-            BorderBrush = ThemeManager.Brush("TextMutedBrush"), Padding = new Thickness(4)
-        };
-        Corners.SetSize(track, CornerSize.Small);
-        var knob = new Border
-        {
-            Width = 20, Height = 20, HorizontalAlignment = on ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(on ? 0 : 2, 0, 0, 0),
-            Background = ThemeManager.Brush(on ? "OnAccentBrush" : "TextMutedBrush")
-        };
-        Corners.SetSize(knob, CornerSize.Tiny);
-        track.Child = knob;
-        var state = new TextBlock
-        {
-            Text = Strings.Get(on ? "On" : "Off"), FontSize = 17, VerticalAlignment = VerticalAlignment.Center, Width = 110,
-            TextAlignment = TextAlignment.Right, Foreground = ThemeManager.Brush("TextMutedBrush")
-        };
-        var value = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
-        value.Children.Add(state);
-        value.Children.Add(track);
-        var button = Row(titleKey, bodyKey, value, chevron: false);
+        var button = Row(titleKey, bodyKey, Strings.Get(on ? "On" : "Off"), chevron: false);
         AutomationProperties.SetItemStatus(button, Strings.Get(on ? "On" : "Off"));
         button.Click += (_, _) =>
         {
@@ -450,14 +408,15 @@ public sealed partial class MainWindow
         };
     }
 
+    /// <summary>A choice opens a context menu beside the row, with the current one ticked.</summary>
     private void Choice(string titleKey, string bodyKey, string current, string[] options, int selected, Action<int> apply)
     {
-        var button = Row(titleKey, bodyKey, ValueText(current), chevron: true);
+        var button = Row(titleKey, bodyKey, current, chevron: true);
         button.Click += (_, _) =>
         {
             Sounds.Play(UiSound.Confirm);
             var row = FocusedRow();
-            var items = options.Select((label, index) => new PickerOption(label, Selected: index == selected, Action: () =>
+            var entries = options.Select((label, index) => new MenuEntry(label, Checked: index == selected, Action: () =>
             {
                 apply(index);
                 Save();
@@ -465,13 +424,13 @@ public sealed partial class MainWindow
                 RenderRows(Math.Max(0, row));
                 return Task.CompletedTask;
             })).ToList();
-            OpenPicker(Strings.Get(titleKey), "", items, button);
+            OpenMenu(entries, button, button);
         };
     }
 
     private void ActionRow(string titleKey, string bodyKey, string value, Func<Task> action)
     {
-        var button = Row(titleKey, bodyKey, value.Length > 0 ? ValueText(value) : null, chevron: true);
+        var button = Row(titleKey, bodyKey, value, chevron: true);
         button.Click += async (_, _) =>
         {
             Sounds.Play(UiSound.Confirm);
@@ -481,10 +440,8 @@ public sealed partial class MainWindow
 
     private TextBlock Info(string titleKey, string value)
     {
-        var text = ValueText(value);
-        text.Foreground = ThemeManager.Brush("TextBrush");
-        Row(titleKey, "", text, chevron: false);
-        return text;
+        var button = Row(titleKey, "", value, chevron: false);
+        return (TextBlock)button.Tag;
     }
 
     private Control? FocusedButton() => Root.XamlRoot is null ? null : FocusManager.GetFocusedElement(Root.XamlRoot) as Control;
@@ -493,7 +450,7 @@ public sealed partial class MainWindow
 
     private void ApplyTheme()
     {
-        ThemeManager.Use(_prefs.Theme);
+        ThemeManager.Use(_prefs.Theme, (GlassDepth)_prefs.Glass);
         Root.RequestedTheme = ThemeManager.ElementTheme;
         _backdropPath = null;
         RenderCards();
@@ -502,7 +459,6 @@ public sealed partial class MainWindow
 
     private void RegisterKeyboardShortcut(bool report)
     {
-        if (!ReturnHotkey.Register(_handle, _prefs.KeyboardShortcut) && report)
-            ShowToast(Strings.Get("ShortcutInUse"));
+        if (!ReturnHotkey.Register(_handle, _prefs.KeyboardShortcut) && report) ShowToast(Strings.Get("ShortcutInUse"));
     }
 }

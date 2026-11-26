@@ -18,7 +18,8 @@ public sealed class PreferencesTests : IDisposable
     public void Missing_file_gives_the_defaults()
     {
         var preferences = Preferences.Load(File1);
-        Assert.Equal("night", preferences.Theme);
+        Assert.Equal("dark", preferences.Theme);
+        Assert.Equal(2, preferences.Glass);
         Assert.Equal("F11", preferences.KeyboardShortcut);
         Assert.Equal(ControllerButtons.View | ControllerButtons.Y, preferences.ControllerShortcut);
         Assert.True(preferences.ShowSystemCard);
@@ -28,7 +29,7 @@ public sealed class PreferencesTests : IDisposable
     [Fact]
     public void Save_and_load_round_trip_without_leaving_a_temporary_file()
     {
-        var preferences = new Preferences { GamesFolder = @"D:\Games", Theme = "arcade", UiScale = 1.25, Language = "en-US" };
+        var preferences = new Preferences { GamesFolder = @"D:\Games", Theme = "light", Glass = 3, UiScale = 1.25, Language = "en-US" };
         var game = new Game { Id = "x", Name = "GTA 6", Path = @"D:\Games\GTA 6\GTA 6.exe" };
         preferences.Manual.Add(game);
         preferences.ArtFor(game).CatalogTitle = "Grand Theft Auto VI";
@@ -37,7 +38,8 @@ public sealed class PreferencesTests : IDisposable
         Assert.False(File.Exists(File1 + ".tmp"));
         var loaded = Preferences.Load(File1);
         Assert.Equal(@"D:\Games", loaded.GamesFolder);
-        Assert.Equal("arcade", loaded.Theme);
+        Assert.Equal("light", loaded.Theme);
+        Assert.Equal(3, loaded.Glass);
         Assert.Equal(1.25, loaded.UiScale);
         Assert.Equal("Grand Theft Auto VI", loaded.Art["x"].CatalogTitle);
         Assert.Equal("x", loaded.LastPlayed);
@@ -49,11 +51,12 @@ public sealed class PreferencesTests : IDisposable
     {
         Directory.CreateDirectory(_folder);
         File.WriteAllText(File1, """
-            {"theme":"neon","uiScale":9,"keyboardShortcut":"F1","controllerShortcut":3,"language":"de-DE",
+            {"theme":"neon","glass":7,"uiScale":9,"keyboardShortcut":"F1","controllerShortcut":3,"language":"de-DE",
              "manual":[{"name":"No path"},{"path":"C:\\a.exe","source":"steam"}]}
             """);
         var loaded = Preferences.Load(File1);
-        Assert.Equal("night", loaded.Theme);
+        Assert.Equal("dark", loaded.Theme);
+        Assert.Equal(2, loaded.Glass);
         Assert.Equal(1.5, loaded.UiScale);
         Assert.Equal("F11", loaded.KeyboardShortcut);
         Assert.Equal(ControllerButtons.View | ControllerButtons.Y, loaded.ControllerShortcut);

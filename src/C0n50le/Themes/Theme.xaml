@@ -1,106 +1,125 @@
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:ui="using:C0n50le.Ui">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Brushes: ThemeManager recolours these same objects when the theme or the selected game changes, so everything
-         that uses them follows at once. The values here are the Night theme. -->
-    <SolidColorBrush x:Key="BackdropBrush" Color="#FF07090D"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#F0131922"/>
-    <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#FF1F2835"/>
-    <SolidColorBrush x:Key="HairlineBrush" Color="#2EFFFFFF"/>
-    <SolidColorBrush x:Key="TextBrush" Color="#FFF4F7FB"/>
-    <SolidColorBrush x:Key="TextMutedBrush" Color="#FFA9B4C2"/>
-    <SolidColorBrush x:Key="AccentBrush" Color="#FF5EE6CF"/>
-    <SolidColorBrush x:Key="OnAccentBrush" Color="#FF04211D"/>
-    <SolidColorBrush x:Key="FocusBrush" Color="#FFFFFFFF"/>
-    <SolidColorBrush x:Key="DimBrush" Color="#D907090D"/>
-    <SolidColorBrush x:Key="HoverBrush" Color="#1FFFFFFF"/>
-    <SolidColorBrush x:Key="TonalBrush" Color="#24FFFFFF"/>
-    <AcrylicBrush x:Key="GlassBrush" TintColor="#0D141D" TintOpacity="0.42" TintLuminosityOpacity="0.6" FallbackColor="#E6131A24" Opacity="0"/>
-    <LinearGradientBrush x:Key="EdgeBrush" StartPoint="0,0" EndPoint="1,1">
+    <!-- The tvOS look, from Apple's tvOS UI kit (Figma, 1920×1080). ThemeManager recolours these brushes in place for
+         Light/Dark and the Liquid Glass depth, so every control follows at once. Values here: Dark, glass Medium. -->
+    <SolidColorBrush x:Key="BackdropBrush" Color="#FF0F0F10"/>
+    <SolidColorBrush x:Key="TextBrush" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#99FFFFFF"/>
+    <SolidColorBrush x:Key="FocusBrush" Color="#E5FFFFFF"/>
+    <SolidColorBrush x:Key="FocusTextBrush" Color="#FF000000"/>
+    <SolidColorBrush x:Key="ControlBrush" Color="#FF3A3A3C"/>
+    <SolidColorBrush x:Key="MaterialStrokeBrush" Color="#1AFFFFFF"/>
+    <SolidColorBrush x:Key="ScrimBrush" Color="#80000000"/>
+    <SolidColorBrush x:Key="SeparatorBrush" Color="#26FFFFFF"/>
+    <SolidColorBrush x:Key="GlyphCircleBrush" Color="#1AFFFFFF"/>
+    <SolidColorBrush x:Key="DimBrush" Color="#E60F0F10"/>
+    <!-- The material: acrylic that blurs the artwork behind it. Opaque when Liquid Glass is off. -->
+    <AcrylicBrush x:Key="MaterialBrush" TintColor="#1E1E1E" TintOpacity="0.55" TintLuminosityOpacity="0.7" FallbackColor="#E61E1E1E"/>
+    <!-- Liquid Glass: a soft light across the top and a lit rim, stronger with each depth. -->
+    <LinearGradientBrush x:Key="SheenBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#2EFFFFFF" Offset="0"/>
-        <GradientStop Color="#2EFFFFFF" Offset="0.4"/>
-        <GradientStop Color="#2EFFFFFF" Offset="0.62"/>
-        <GradientStop Color="#2EFFFFFF" Offset="1"/>
+        <GradientStop Color="#0AFFFFFF" Offset="0.35"/>
+        <GradientStop Color="#00FFFFFF" Offset="0.6"/>
+        <GradientStop Color="#08FFFFFF" Offset="1"/>
     </LinearGradientBrush>
-    <LinearGradientBrush x:Key="ScrimLeftBrush" StartPoint="0,0" EndPoint="1,0">
-        <GradientStop Color="#F207090D" Offset="0"/>
-        <GradientStop Color="#B807090D" Offset="0.45"/>
-        <GradientStop Color="#2607090D" Offset="1"/>
+    <LinearGradientBrush x:Key="RimBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#80FFFFFF" Offset="0"/>
+        <GradientStop Color="#14FFFFFF" Offset="0.35"/>
+        <GradientStop Color="#0AFFFFFF" Offset="0.65"/>
+        <GradientStop Color="#4DFFFFFF" Offset="1"/>
     </LinearGradientBrush>
-    <LinearGradientBrush x:Key="ScrimBottomBrush" StartPoint="0,1" EndPoint="0,0">
-        <GradientStop Color="#F507090D" Offset="0"/>
-        <GradientStop Color="#0007090D" Offset="0.6"/>
+    <!-- The specular light on a focused card. -->
+    <LinearGradientBrush x:Key="SpecularBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#40FFFFFF" Offset="0"/>
+        <GradientStop Color="#0DFFFFFF" Offset="0.4"/>
+        <GradientStop Color="#00FFFFFF" Offset="0.7"/>
     </LinearGradientBrush>
-    <LinearGradientBrush x:Key="ScrimTopBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#B807090D" Offset="0"/>
-        <GradientStop Color="#0007090D" Offset="1"/>
+    <!-- The artwork stays clear in the top shelf and fades under the dock and the grid. -->
+    <LinearGradientBrush x:Key="ShelfFadeBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#000F0F10" Offset="0"/>
+        <GradientStop Color="#1A0F0F10" Offset="0.45"/>
+        <GradientStop Color="#B30F0F10" Offset="0.78"/>
+        <GradientStop Color="#F20F0F10" Offset="1"/>
     </LinearGradientBrush>
-    <RadialGradientBrush x:Key="AmbientBrush" Center="0.78,0.18" GradientOrigin="0.78,0.18" RadiusX="0.8" RadiusY="1">
-        <GradientStop Color="#405EE6CF" Offset="0"/>
-        <GradientStop Color="#0007090D" Offset="1"/>
+    <LinearGradientBrush x:Key="ShelfTopBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#8C0F0F10" Offset="0"/>
+        <GradientStop Color="#000F0F10" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="ShelfSideBrush" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#B30F0F10" Offset="0"/>
+        <GradientStop Color="#4D0F0F10" Offset="0.45"/>
+        <GradientStop Color="#000F0F10" Offset="0.75"/>
+    </LinearGradientBrush>
+    <RadialGradientBrush x:Key="AmbientBrush" Center="0.5,0.9" GradientOrigin="0.5,0.9" RadiusX="0.9" RadiusY="0.8">
+        <GradientStop Color="#40343434" Offset="0"/>
+        <GradientStop Color="#000F0F10" Offset="1"/>
     </RadialGradientBrush>
 
-    <!-- Type: one family, a few sizes. -->
+    <!-- Type: Inter stands in for SF Pro (not licensed for Windows), at the kit's sizes and weights. -->
     <FontFamily x:Key="AppFont">ms-appx:///Assets/Fonts/InterVariable.ttf#Inter Variable</FontFamily>
     <StaticResource x:Key="ContentControlThemeFontFamily" ResourceKey="AppFont"/>
+    <x:Double x:Key="FocusScale">1.05</x:Double>
 
-    <!-- Built-in controls (text boxes, dialogs, lists) take the theme's colours. -->
-    <StaticResource x:Key="ContentDialogBackground" ResourceKey="SurfaceRaisedBrush"/>
-    <StaticResource x:Key="ContentDialogForeground" ResourceKey="TextBrush"/>
-    <StaticResource x:Key="ContentDialogBorderBrush" ResourceKey="HairlineBrush"/>
-    <StaticResource x:Key="ContentDialogTopOverlay" ResourceKey="SurfaceRaisedBrush"/>
+    <!-- Built-in controls (text boxes, lists) in the same colours. -->
     <StaticResource x:Key="TextControlForeground" ResourceKey="TextBrush"/>
     <StaticResource x:Key="TextControlForegroundPointerOver" ResourceKey="TextBrush"/>
-    <StaticResource x:Key="TextControlForegroundFocused" ResourceKey="TextBrush"/>
-    <StaticResource x:Key="TextControlBackground" ResourceKey="SurfaceBrush"/>
-    <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="SurfaceBrush"/>
-    <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="SurfaceBrush"/>
-    <StaticResource x:Key="TextControlBorderBrush" ResourceKey="HairlineBrush"/>
-    <StaticResource x:Key="TextControlBorderBrushPointerOver" ResourceKey="HairlineBrush"/>
-    <StaticResource x:Key="TextControlBorderBrushFocused" ResourceKey="AccentBrush"/>
-    <StaticResource x:Key="TextControlHeaderForeground" ResourceKey="TextMutedBrush"/>
-    <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="TextMutedBrush"/>
+    <StaticResource x:Key="TextControlForegroundFocused" ResourceKey="FocusTextBrush"/>
+    <StaticResource x:Key="TextControlBackground" ResourceKey="ControlBrush"/>
+    <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="ControlBrush"/>
+    <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="FocusBrush"/>
+    <StaticResource x:Key="TextControlBorderBrush" ResourceKey="MaterialStrokeBrush"/>
+    <StaticResource x:Key="TextControlBorderBrushPointerOver" ResourceKey="MaterialStrokeBrush"/>
+    <StaticResource x:Key="TextControlBorderBrushFocused" ResourceKey="FocusBrush"/>
+    <StaticResource x:Key="TextControlHeaderForeground" ResourceKey="TextSecondaryBrush"/>
+    <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="TextSecondaryBrush"/>
+    <StaticResource x:Key="TextControlPlaceholderForegroundFocused" ResourceKey="TextSecondaryBrush"/>
+    <StaticResource x:Key="TextControlSelectionHighlightColor" ResourceKey="ControlBrush"/>
     <StaticResource x:Key="ListViewItemForeground" ResourceKey="TextBrush"/>
-    <StaticResource x:Key="ListViewItemBackgroundSelected" ResourceKey="TonalBrush"/>
-    <StaticResource x:Key="ListViewItemBackgroundSelectedPointerOver" ResourceKey="TonalBrush"/>
-    <StaticResource x:Key="ListViewItemBackgroundSelectedPressed" ResourceKey="TonalBrush"/>
-    <StaticResource x:Key="ListViewItemBackgroundPointerOver" ResourceKey="HoverBrush"/>
-    <StaticResource x:Key="ListViewItemSelectionIndicatorBrush" ResourceKey="AccentBrush"/>
-    <StaticResource x:Key="ListViewItemSelectionIndicatorPointerOverBrush" ResourceKey="AccentBrush"/>
-    <StaticResource x:Key="ListViewItemSelectionIndicatorPressedBrush" ResourceKey="AccentBrush"/>
-    <StaticResource x:Key="AccentFillColorDefaultBrush" ResourceKey="AccentBrush"/>
-    <StaticResource x:Key="TextControlSelectionHighlightColor" ResourceKey="AccentBrush"/>
+    <StaticResource x:Key="ListViewItemBackgroundSelected" ResourceKey="GlyphCircleBrush"/>
+    <StaticResource x:Key="ListViewItemBackgroundSelectedPointerOver" ResourceKey="GlyphCircleBrush"/>
+    <StaticResource x:Key="ListViewItemSelectionIndicatorBrush" ResourceKey="TextBrush"/>
+    <StaticResource x:Key="ListViewItemSelectionIndicatorPointerOverBrush" ResourceKey="TextBrush"/>
+    <StaticResource x:Key="ListViewItemSelectionIndicatorPressedBrush" ResourceKey="TextBrush"/>
 
-    <!-- The surface every button is drawn on: glass layer (only visible in the Glass theme), fill, hover, lit edge,
-         selection edge (set by code) and the focus ring, which only shows for controller and keyboard focus. -->
-    <ControlTemplate x:Key="SurfaceTemplate" TargetType="Button">
+    <!-- A material panel (dock, menu, alert, toast): blur, sheen and rim; the corner comes from CornerRadius. -->
+    <Style x:Key="GlassPanel" TargetType="ContentControl">
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid>
+                        <Border Background="{StaticResource MaterialBrush}" BorderBrush="{StaticResource MaterialStrokeBrush}"
+                                BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}"/>
+                        <Border Background="{StaticResource SheenBrush}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+                        <Border BorderBrush="{StaticResource RimBrush}" BorderThickness="1.5" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+                        <ContentPresenter Content="{TemplateBinding Content}" Padding="{TemplateBinding Padding}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The one focus behaviour of tvOS, for every control: the focused one becomes a white platter with black text and
+         grows a little. With the mouse, hovering moves the focus, so it looks the same. -->
+    <ControlTemplate x:Key="PlatterTemplate" TargetType="Button">
         <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
             <Grid.RenderTransform>
                 <ScaleTransform x:Name="Scale"/>
             </Grid.RenderTransform>
             <VisualStateManager.VisualStateGroups>
                 <VisualStateGroup x:Name="CommonStates">
-                    <VisualStateGroup.Transitions>
-                        <VisualTransition To="Pressed" GeneratedDuration="0:0:0.08"/>
-                        <VisualTransition GeneratedDuration="0:0:0.18">
-                            <VisualTransition.GeneratedEasingFunction>
-                                <CubicEase EasingMode="EaseOut"/>
-                            </VisualTransition.GeneratedEasingFunction>
-                        </VisualTransition>
-                    </VisualStateGroup.Transitions>
                     <VisualState x:Name="Normal"/>
-                    <VisualState x:Name="PointerOver">
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
-                        </Storyboard>
-                    </VisualState>
+                    <VisualState x:Name="PointerOver"/>
                     <VisualState x:Name="Pressed">
                         <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
-                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="0.97" Duration="0"/>
-                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="0.97" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Press" Storyboard.TargetProperty="ScaleX" To="0.96" Duration="0:0:0.08"/>
+                            <DoubleAnimation Storyboard.TargetName="Press" Storyboard.TargetProperty="ScaleY" To="0.96" Duration="0:0:0.08"/>
                         </Storyboard>
                     </VisualState>
                     <VisualState x:Name="Disabled">
@@ -110,256 +129,180 @@
                     </VisualState>
                 </VisualStateGroup>
                 <VisualStateGroup x:Name="FocusStates">
-                    <VisualState x:Name="Unfocused"/>
-                    <VisualState x:Name="PointerFocused"/>
-                    <VisualState x:Name="Focused">
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Ring" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
-                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
-                        </Storyboard>
-                    </VisualState>
-                </VisualStateGroup>
-            </VisualStateManager.VisualStateGroups>
-            <Border Background="{StaticResource GlassBrush}" CornerRadius="{TemplateBinding CornerRadius}"/>
-            <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"/>
-            <Border x:Name="Hover" Opacity="0" Background="{StaticResource HoverBrush}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
-            <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
-                              Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
-                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                              CornerRadius="{TemplateBinding CornerRadius}"
-                              AutomationProperties.AccessibilityView="Raw"/>
-            <Border BorderBrush="{StaticResource EdgeBrush}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
-            <Border BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
-            <Border x:Name="Ring" Opacity="0" Margin="-7" BorderBrush="{StaticResource FocusBrush}" BorderThickness="2.5" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
-        </Grid>
-    </ControlTemplate>
-    <!-- The same without glass layer and lit edge: icons and list entries that sit flat on the page in every theme. -->
-    <ControlTemplate x:Key="PlainTemplate" TargetType="Button">
-        <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
-            <Grid.RenderTransform>
-                <ScaleTransform x:Name="Scale"/>
-            </Grid.RenderTransform>
-            <VisualStateManager.VisualStateGroups>
-                <VisualStateGroup x:Name="CommonStates">
                     <VisualStateGroup.Transitions>
-                        <VisualTransition To="Pressed" GeneratedDuration="0:0:0.08"/>
-                        <VisualTransition GeneratedDuration="0:0:0.18">
+                        <VisualTransition GeneratedDuration="0:0:0.16">
                             <VisualTransition.GeneratedEasingFunction>
                                 <CubicEase EasingMode="EaseOut"/>
                             </VisualTransition.GeneratedEasingFunction>
                         </VisualTransition>
                     </VisualStateGroup.Transitions>
-                    <VisualState x:Name="Normal"/>
-                    <VisualState x:Name="PointerOver">
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
-                        </Storyboard>
-                    </VisualState>
-                    <VisualState x:Name="Pressed">
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
-                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="0.97" Duration="0"/>
-                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="0.97" Duration="0"/>
-                        </Storyboard>
-                    </VisualState>
-                    <VisualState x:Name="Disabled">
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="Opacity" To="0.4" Duration="0"/>
-                        </Storyboard>
-                    </VisualState>
-                </VisualStateGroup>
-                <VisualStateGroup x:Name="FocusStates">
                     <VisualState x:Name="Unfocused"/>
-                    <VisualState x:Name="PointerFocused"/>
                     <VisualState x:Name="Focused">
+                        <VisualState.Setters>
+                            <Setter Target="Content.Foreground" Value="{StaticResource FocusTextBrush}"/>
+                        </VisualState.Setters>
                         <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Ring" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
-                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                            <DoubleAnimation Storyboard.TargetName="Platter" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="{StaticResource FocusScale}" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="{StaticResource FocusScale}" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                    <VisualState x:Name="PointerFocused">
+                        <VisualState.Setters>
+                            <Setter Target="Content.Foreground" Value="{StaticResource FocusTextBrush}"/>
+                        </VisualState.Setters>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Platter" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="{StaticResource FocusScale}" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="{StaticResource FocusScale}" Duration="0"/>
                         </Storyboard>
                     </VisualState>
                 </VisualStateGroup>
             </VisualStateManager.VisualStateGroups>
-            <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"/>
-            <Border x:Name="Hover" Opacity="0" Background="{StaticResource HoverBrush}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
-            <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
-                              Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
-                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                              CornerRadius="{TemplateBinding CornerRadius}"
-                              AutomationProperties.AccessibilityView="Raw"/>
-            <Border BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
-            <Border x:Name="Ring" Opacity="0" Margin="-7" BorderBrush="{StaticResource FocusBrush}" BorderThickness="2.5" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+            <Grid RenderTransformOrigin="0.5,0.5">
+                <Grid.RenderTransform>
+                    <ScaleTransform x:Name="Press"/>
+                </Grid.RenderTransform>
+                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"/>
+                <Border x:Name="Platter" Opacity="0" Background="{StaticResource FocusBrush}" CornerRadius="{TemplateBinding CornerRadius}"/>
+                <ContentPresenter x:Name="Content" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                  AutomationProperties.AccessibilityView="Raw"/>
+            </Grid>
         </Grid>
     </ControlTemplate>
 
-
-    <Style x:Key="SurfaceButton" TargetType="Button">
-        <Setter Property="Template" Value="{StaticResource SurfaceTemplate}"/>
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+    <Style x:Key="PlatterBase" TargetType="Button">
+        <Setter Property="Template" Value="{StaticResource PlatterTemplate}"/>
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderBrush" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
         <Setter Property="UseSystemFocusVisuals" Value="False"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
-        <Setter Property="ui:Corners.Size" Value="Medium"/>
     </Style>
 
-    <!-- 48 high, icon 22 + text 18, same horizontal padding everywhere. -->
-    <Style x:Key="PillButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
-        <Setter Property="Background" Value="{StaticResource TonalBrush}"/>
-        <Setter Property="Height" Value="48"/>
-        <Setter Property="MinWidth" Value="48"/>
+    <!-- Product screen button: 84 high, corner 12, Bold 31, on the material. -->
+    <Style x:Key="TvButton" TargetType="Button" BasedOn="{StaticResource PlatterBase}">
+        <Setter Property="Background" Value="{StaticResource MaterialBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource MaterialStrokeBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Height" Value="84"/>
+        <Setter Property="MinWidth" Value="260"/>
+        <Setter Property="Padding" Value="40,0"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="FontSize" Value="31"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+
+    <!-- Alert button: 66 high, corner 16, Medium 29, filled. -->
+    <Style x:Key="TvAlertButton" TargetType="Button" BasedOn="{StaticResource PlatterBase}">
+        <Setter Property="Background" Value="{StaticResource ControlBrush}"/>
+        <Setter Property="Height" Value="66"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="Padding" Value="24,0"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="FontSize" Value="29"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+    </Style>
+
+    <!-- Round icon button on the material, 64. -->
+    <Style x:Key="TvIconButton" TargetType="Button" BasedOn="{StaticResource PlatterBase}">
+        <Setter Property="Background" Value="{StaticResource MaterialBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource MaterialStrokeBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Width" Value="64"/>
+        <Setter Property="Height" Value="64"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="CornerRadius" Value="32"/>
+        <Setter Property="FontSize" Value="26"/>
+    </Style>
+
+    <!-- Sidebar and settings row: 72 high, corner 16, Medium 25, no fill until focused. -->
+    <Style x:Key="TvListItem" TargetType="Button" BasedOn="{StaticResource PlatterBase}">
+        <Setter Property="MinHeight" Value="72"/>
         <Setter Property="Padding" Value="20,0"/>
-        <Setter Property="FontSize" Value="18"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="ui:Corners.Size" Value="Small"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="FontSize" Value="25"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
     </Style>
 
-    <!-- An icon on its own, like the top bar of Console Mode: no fill until pointed at or focused. -->
-    <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
-        <Setter Property="Template" Value="{StaticResource PlainTemplate}"/>
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Width" Value="56"/>
-        <Setter Property="Height" Value="56"/>
-        <Setter Property="Padding" Value="0"/>
-        <Setter Property="ui:Corners.Size" Value="Small"/>
+    <!-- Context menu item: 70 high, corner 16, Medium 25. -->
+    <Style x:Key="TvMenuItem" TargetType="Button" BasedOn="{StaticResource TvListItem}">
+        <Setter Property="MinHeight" Value="70"/>
+        <Setter Property="Height" Value="70"/>
+        <Setter Property="Padding" Value="0,0,24,0"/>
     </Style>
 
-    <Style x:Key="IconPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
-        <Setter Property="Width" Value="48"/>
-        <Setter Property="Padding" Value="0"/>
-    </Style>
-
-    <!-- The main action: 56 high, filled with the accent. -->
-    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
-        <Setter Property="Height" Value="56"/>
-        <Setter Property="MinWidth" Value="180"/>
-        <Setter Property="Padding" Value="28,0"/>
-        <Setter Property="FontSize" Value="20"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
-        <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
-        <Setter Property="ui:Corners.Size" Value="Small"/>
-    </Style>
-
-    <Style x:Key="RoundButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
-        <Setter Property="Background" Value="{StaticResource TonalBrush}"/>
-        <Setter Property="Width" Value="56"/>
-        <Setter Property="Height" Value="56"/>
-        <Setter Property="Padding" Value="0"/>
-        <Setter Property="ui:Corners.Size" Value="Small"/>
-    </Style>
-
-    <!-- A card has one edge only: the code draws it in the focus colour on the selected card, for mouse and controller
-         alike. No focus ring or hover veil of its own, so there is never a second border. -->
+    <!-- A game card: 250×150, corner 30. It grows and lifts on focus from code (tvOS focus engine). -->
     <ControlTemplate x:Key="CardTemplate" TargetType="Button">
-        <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
-            <Grid.RenderTransform>
-                <ScaleTransform x:Name="Scale"/>
-            </Grid.RenderTransform>
+        <Grid x:Name="Root">
             <VisualStateManager.VisualStateGroups>
                 <VisualStateGroup x:Name="CommonStates">
-                    <VisualStateGroup.Transitions>
-                        <VisualTransition To="Pressed" GeneratedDuration="0:0:0.08"/>
-                        <VisualTransition GeneratedDuration="0:0:0.18"/>
-                    </VisualStateGroup.Transitions>
                     <VisualState x:Name="Normal"/>
                     <VisualState x:Name="PointerOver"/>
-                    <VisualState x:Name="Pressed">
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="0.97" Duration="0"/>
-                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="0.97" Duration="0"/>
-                        </Storyboard>
-                    </VisualState>
+                    <VisualState x:Name="Pressed"/>
                     <VisualState x:Name="Disabled">
                         <Storyboard>
                             <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="Opacity" To="0.4" Duration="0"/>
                         </Storyboard>
                     </VisualState>
                 </VisualStateGroup>
+                <VisualStateGroup x:Name="FocusStates">
+                    <VisualStateGroup.Transitions>
+                        <VisualTransition GeneratedDuration="0:0:0.2"/>
+                    </VisualStateGroup.Transitions>
+                    <VisualState x:Name="Unfocused"/>
+                    <VisualState x:Name="Focused">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Specular" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                    <VisualState x:Name="PointerFocused">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Specular" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                </VisualStateGroup>
             </VisualStateManager.VisualStateGroups>
-            <Border Background="{StaticResource GlassBrush}" CornerRadius="{TemplateBinding CornerRadius}"/>
             <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"/>
-            <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
-                              Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
-                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                              CornerRadius="{TemplateBinding CornerRadius}"
+            <ContentPresenter Content="{TemplateBinding Content}" CornerRadius="{TemplateBinding CornerRadius}"
+                              Foreground="{TemplateBinding Foreground}"
+                              HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                               AutomationProperties.AccessibilityView="Raw"/>
-            <Border BorderBrush="{StaticResource EdgeBrush}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
-            <Border BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+            <Border x:Name="Specular" Opacity="0" Background="{StaticResource SpecularBrush}" CornerRadius="{TemplateBinding CornerRadius}"
+                    IsHitTestVisible="False"/>
+            <Border BorderBrush="#29FFFFFF" BorderThickness="0.5" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
         </Grid>
     </ControlTemplate>
 
-    <Style x:Key="GameCard" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
+    <Style x:Key="TvCard" TargetType="Button">
         <Setter Property="Template" Value="{StaticResource CardTemplate}"/>
-        <Setter Property="Height" Value="280"/>
-        <Setter Property="Width" Value="280"/>
+        <Setter Property="Width" Value="250"/>
+        <Setter Property="Height" Value="150"/>
+        <Setter Property="CornerRadius" Value="30"/>
         <Setter Property="Padding" Value="0"/>
-        <Setter Property="Background" Value="{StaticResource SurfaceRaisedBrush}"/>
-        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
-        <Setter Property="ui:Corners.Size" Value="Large"/>
-    </Style>
-
-    <Style x:Key="CategoryButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
-        <Setter Property="Template" Value="{StaticResource PlainTemplate}"/>
-        <Setter Property="Height" Value="64"/>
-        <Setter Property="Padding" Value="20,0"/>
-        <Setter Property="FontSize" Value="20"/>
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-    </Style>
-
-    <Style x:Key="RowButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
-        <Setter Property="MinHeight" Value="80"/>
-        <Setter Property="Padding" Value="28,12"/>
-        <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-    </Style>
-
-    <Style x:Key="OptionButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
-        <Setter Property="Height" Value="64"/>
-        <Setter Property="Padding" Value="24,0"/>
-        <Setter Property="FontSize" Value="20"/>
-        <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-    </Style>
-
-    <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
-        <Setter Property="Background" Value="{StaticResource TonalBrush}"/>
-        <Setter Property="MinHeight" Value="44"/>
-        <Setter Property="MinWidth" Value="120"/>
-        <Setter Property="Padding" Value="20,0"/>
-        <Setter Property="FontSize" Value="16"/>
-        <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        <Setter Property="ui:Corners.Size" Value="Small"/>
-    </Style>
-
-    <!-- The confirming button of a dialog: the accent, same size and corners as Cancel. -->
-    <Style x:Key="DialogPrimaryButton" TargetType="Button" BasedOn="{StaticResource DialogButton}">
-        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
-        <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-    </Style>
-
-    <Style x:Key="SurfacePanel" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="ui:Corners.Size" Value="Large"/>
-    </Style>
-
-    <Style x:Key="TextField" TargetType="TextBox">
+        <Setter Property="Background" Value="{StaticResource ControlBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="UseSystemFocusVisuals" Value="False"/>
         <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
-        <Setter Property="FontSize" Value="17"/>
-        <Setter Property="MinHeight" Value="44"/>
-        <Setter Property="MinWidth" Value="380"/>
-        <Setter Property="Padding" Value="14,9"/>
-        <Setter Property="ui:Corners.Size" Value="Small"/>
+    </Style>
+
+    <!-- Text field: 66 high, corner 16, white when focused, like tvOS. -->
+    <Style x:Key="TvTextField" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+        <Setter Property="FontSize" Value="25"/>
+        <Setter Property="MinHeight" Value="66"/>
+        <Setter Property="Padding" Value="20,16"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
     </Style>
 </ResourceDictionary>

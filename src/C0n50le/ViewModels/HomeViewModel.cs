@@ -9,7 +9,14 @@ public sealed partial class HomeViewModel : ObservableObject
 {
     [ObservableProperty] private string _heroTitle = "";
     [ObservableProperty] private string _heroDetails = "";
+    public bool HasHeroDetails => HeroDetails.Length > 0;
+    public bool HasHeroDescription => HeroDescription.Length > 0;
     [ObservableProperty] private string _heroDescription = "";
+    [ObservableProperty] private string _heroDescriptionSource = "";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDescriptionSource))]
+    private Uri? _heroDescriptionUri;
+    public bool HasDescriptionSource => HeroDescriptionUri is not null;
     [ObservableProperty] private string _heroStatus = "";
     [ObservableProperty] private bool _hasSelection;
     [ObservableProperty] private bool _isRunning;
@@ -47,6 +54,10 @@ public sealed partial class HomeViewModel : ObservableObject
 
 
     partial void OnIsRunningChanged(bool value) => OnPropertyChanged(nameof(HintPlay));
+
+    partial void OnHeroDetailsChanged(string value) => OnPropertyChanged(nameof(HasHeroDetails));
+
+    partial void OnHeroDescriptionChanged(string value) => OnPropertyChanged(nameof(HasHeroDescription));
     partial void OnFamilyChanged(PadFamily value) => RefreshTexts();
 
     /// <summary>Raises every computed text again, after a language or pad change.</summary>

@@ -59,7 +59,7 @@ public sealed partial class MainWindow : Window
         AppWindow.Closing += OnClosing;
         Activated += OnActivated;
 
-        ThemeManager.Use(_prefs.Theme);
+        ThemeManager.Use(_prefs.Theme, (Core.Theming.GlassDepth)_prefs.Glass);
         Root.RequestedTheme = ThemeManager.ElementTheme;
         Sounds.Enabled = _prefs.Sounds;
 
@@ -187,6 +187,7 @@ public sealed partial class MainWindow : Window
         _sessionTimer?.Stop();
         _clockTimer.Stop();
         _artworkLookup?.Cancel();
+        _descriptionLifetime.Cancel();
         _session?.Dispose();
         RestoreCursor();
         ReturnHotkey.Unhook(_handle);

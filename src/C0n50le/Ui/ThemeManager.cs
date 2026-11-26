@@ -1,173 +1,91 @@
 using C0n50le.Core.Theming;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
 
 namespace C0n50le.Ui;
 
-/// <summary>The corner size an element takes from the theme.</summary>
-public enum CornerSize
-{
-    None,
-    Tiny,
-    Small,
-    Medium,
-    Large,
-    Pill
-}
-
 /// <summary>
-/// Gives an element the theme's corners: set <c>ui:Corners.Size</c> (also from a style) and the element follows every
-/// theme change, so Arcade's square edges and Night's soft ones need no second set of styles.
-/// </summary>
-public static class Corners
-{
-    private static readonly List<WeakReference<DependencyObject>> Elements = [];
-
-    public static readonly DependencyProperty SizeProperty = DependencyProperty.RegisterAttached(
-        "Size", typeof(CornerSize), typeof(Corners), new PropertyMetadata(CornerSize.None, OnSizeChanged));
-
-    public static CornerSize GetSize(DependencyObject element) => (CornerSize)element.GetValue(SizeProperty);
-    public static void SetSize(DependencyObject element, CornerSize value) => element.SetValue(SizeProperty, value);
-
-    private static void OnSizeChanged(DependencyObject element, DependencyPropertyChangedEventArgs args)
-    {
-        lock (Elements)
-        {
-            if (Elements.Count > 512) Elements.RemoveAll(reference => !reference.TryGetTarget(out _));
-            Elements.Add(new WeakReference<DependencyObject>(element));
-        }
-        Apply(element, (CornerSize)args.NewValue);
-    }
-
-    public static CornerRadius Radius(CornerSize size)
-    {
-        var theme = ThemeManager.Current;
-        var value = size switch
-        {
-            CornerSize.Small => theme.CornerSmall,
-            CornerSize.Medium => theme.CornerMedium,
-            CornerSize.Large => theme.CornerLarge,
-            // No capsules: every control shares the theme's small corner, so buttons, switches and fields match.
-            CornerSize.Pill => theme.CornerSmall,
-            CornerSize.Tiny => Math.Max(2, theme.CornerSmall / 2),
-            _ => 0
-        };
-        return new CornerRadius(value);
-    }
-
-    internal static void RefreshAll()
-    {
-        List<DependencyObject> alive = [];
-        lock (Elements)
-        {
-            Elements.RemoveAll(reference => !reference.TryGetTarget(out _));
-            foreach (var reference in Elements)
-                if (reference.TryGetTarget(out var element)) alive.Add(element);
-        }
-        foreach (var element in alive) Apply(element, GetSize(element));
-    }
-
-    private static void Apply(DependencyObject element, CornerSize size)
-    {
-        var radius = Radius(size);
-        switch (element)
-        {
-            case Control control: control.CornerRadius = radius; break;
-            case Border border: border.CornerRadius = radius; break;
-            case Grid grid: grid.CornerRadius = radius; break;
-            case StackPanel panel: panel.CornerRadius = radius; break;
-        }
-    }
-}
-
-/// <summary>
-/// Applies a theme: recolours the shared brushes of Theme.xaml in place (so the change is instant everywhere) and the
-/// corners. The themes that follow the artwork are re-applied with the selected game's color.
+/// Applies Light or Dark and the Liquid Glass depth by recolouring the shared brushes of Theme.xaml in place, so the
+/// change is instant everywhere.
 /// </summary>
 public static class ThemeManager
 {
-    private static ThemeTokens _base = ThemeCatalog.Night;
+    private static string _id = ThemeCatalog.DefaultId;
+    private static GlassDepth _glass = ThemeCatalog.DefaultGlass;
     private static Argb? _artwork;
 
-    public static ThemeTokens Current { get; private set; } = ThemeCatalog.Night;
+    public static ThemeTokens Current { get; private set; } = ThemeCatalog.Dark(ThemeCatalog.DefaultGlass);
 
-    public static event Action? Changed;
-
-    public static void Use(string id)
+    public static void Use(string id, GlassDepth glass)
     {
-        _base = ThemeCatalog.Get(id);
+        _id = ThemeCatalog.Normalize(id);
+        _glass = glass;
         Apply();
-        Corners.RefreshAll();
-        Changed?.Invoke();
     }
 
-    /// <summary>The selected game's color: only the themes that follow the artwork change with it.</summary>
+    /// <summary>The focused game's colour, for the soft glow behind the home.</summary>
     public static void UseArtwork(Argb? color)
     {
         if (_artwork == color) return;
         _artwork = color;
-        if (_base.FollowsArtwork) Apply();
-        else Ambient(color);
+        Ambient();
     }
 
     private static void Apply()
     {
-        var theme = Current = ThemeCatalog.WithArtwork(_base, _artwork);
+        var theme = Current = ThemeCatalog.Get(_id, _glass);
         Solid("BackdropBrush", theme.Backdrop);
-        Solid("SurfaceBrush", theme.Glass ? theme.Surface.WithAlpha(120) : theme.Surface);
-        Solid("SurfaceRaisedBrush", theme.SurfaceRaised);
-        Solid("HairlineBrush", theme.Border);
         Solid("TextBrush", theme.Text);
-        Solid("TextMutedBrush", theme.TextMuted);
-        Solid("AccentBrush", theme.Accent);
-        Solid("OnAccentBrush", theme.OnAccent);
+        Solid("TextSecondaryBrush", theme.TextSecondary);
         Solid("FocusBrush", theme.Focus);
-        Solid("DimBrush", theme.Backdrop.WithAlpha(theme.IsLight ? (byte)225 : (byte)217));
-        Solid("HoverBrush", theme.IsLight ? Argb.FromHex("#14000000") : Argb.FromHex("#1FFFFFFF"));
+        Solid("FocusTextBrush", theme.FocusText);
+        Solid("ControlBrush", theme.Control);
+        Solid("MaterialStrokeBrush", theme.MaterialStroke);
+        Solid("ScrimBrush", theme.Scrim);
+        Solid("SeparatorBrush", theme.Separator);
+        Solid("GlyphCircleBrush", theme.IsLight ? Argb.FromHex("#26FFFFFF") : Argb.FromHex("#1AFFFFFF"));
+        Solid("DimBrush", theme.Backdrop.WithAlpha(theme.IsLight ? (byte)235 : (byte)230));
 
-        var glass = (AcrylicBrush)Application.Current.Resources["GlassBrush"];
-        glass.Opacity = theme.Glass ? 1 : 0;
-        glass.TintColor = Color(theme.Surface.WithAlpha(255));
-        glass.TintOpacity = 0.68;
-        glass.TintLuminosityOpacity = 0.85;
-        glass.FallbackColor = Color(theme.Surface.WithAlpha(230));
+        var material = (AcrylicBrush)Application.Current.Resources["MaterialBrush"];
+        var tint = theme.Material.WithAlpha(255);
+        material.TintColor = Color(tint);
+        material.TintOpacity = theme.TintOpacity;
+        material.TintLuminosityOpacity = theme.IsGlass ? Math.Clamp(theme.TintOpacity + 0.15, 0, 1) : 1;
+        material.FallbackColor = Color(theme.Material.WithAlpha(theme.IsGlass ? (byte)230 : (byte)255));
 
-        var edge = (LinearGradientBrush)Application.Current.Resources["EdgeBrush"];
-        if (theme.Glass)
-        {
-            edge.GradientStops[0].Color = Color(Argb.FromHex("#8CFFFFFF"));
-            edge.GradientStops[1].Color = Color(Argb.FromHex("#1FFFFFFF"));
-            edge.GradientStops[2].Color = Color(Argb.FromHex("#0FFFFFFF"));
-            edge.GradientStops[3].Color = Color(Argb.FromHex("#59FFFFFF"));
-        }
-        else
-            // Outside the Glass theme buttons have no outline: fill and focus ring are enough.
-            foreach (var stop in edge.GradientStops) stop.Color = Color(theme.Border.WithAlpha(0));
-        Solid("TonalBrush", theme.IsLight ? Argb.FromHex("#141D1B18") : Argb.FromHex("#24FFFFFF"));
+        // Liquid Glass: sheen on top and a lit rim, scaled by the depth; nothing when it is off.
+        var sheen = theme.Sheen;
+        var top = (LinearGradientBrush)Application.Current.Resources["SheenBrush"];
+        SetStops(top, Alpha(0.20 * sheen), Alpha(0.06 * sheen), Alpha(0), Alpha(0.04 * sheen));
+        var rim = (LinearGradientBrush)Application.Current.Resources["RimBrush"];
+        SetStops(rim, Alpha(0.60 * sheen), Alpha(0.10 * sheen), Alpha(0.05 * sheen), Alpha(0.35 * sheen));
 
-        var scrim = theme.Scrim;
-        var left = (LinearGradientBrush)Application.Current.Resources["ScrimLeftBrush"];
-        left.GradientStops[0].Color = Color(scrim);
-        left.GradientStops[1].Color = Color(scrim.WithAlpha((byte)(scrim.A * 0.76)));
-        left.GradientStops[2].Color = Color(scrim.WithAlpha((byte)(scrim.A * 0.16)));
-        var topVeil = (LinearGradientBrush)Application.Current.Resources["ScrimTopBrush"];
-        topVeil.GradientStops[0].Color = Color(scrim.WithAlpha((byte)(scrim.A * 0.75)));
-        topVeil.GradientStops[1].Color = Color(scrim.WithAlpha(0));
-        var bottom = (LinearGradientBrush)Application.Current.Resources["ScrimBottomBrush"];
-        bottom.GradientStops[0].Color = Color(scrim.WithAlpha(245));
-        bottom.GradientStops[1].Color = Color(scrim.WithAlpha(0));
-        Ambient(_artwork);
+        var backdrop = theme.Backdrop;
+        var fade = (LinearGradientBrush)Application.Current.Resources["ShelfFadeBrush"];
+        SetStops(fade, backdrop.WithAlpha(0), backdrop.WithAlpha(0x1A), backdrop.WithAlpha(theme.IsLight ? (byte)0xC0 : (byte)0xB3),
+            backdrop.WithAlpha(0xF2));
+        var topVeil = (LinearGradientBrush)Application.Current.Resources["ShelfTopBrush"];
+        SetStops(topVeil, backdrop.WithAlpha(theme.IsLight ? (byte)0xA6 : (byte)0x8C), backdrop.WithAlpha(0));
+        var side = (LinearGradientBrush)Application.Current.Resources["ShelfSideBrush"];
+        SetStops(side, backdrop.WithAlpha(theme.IsLight ? (byte)0xC8 : (byte)0xB3), backdrop.WithAlpha(0x4D), backdrop.WithAlpha(0));
+        Ambient();
     }
 
-    private static void Ambient(Argb? artwork)
+    private static void Ambient()
     {
         var theme = Current;
         var ambient = (RadialGradientBrush)Application.Current.Resources["AmbientBrush"];
-        var tint = artwork ?? theme.Accent;
-        ambient.GradientStops[0].Color = Color(tint.WithAlpha(theme.IsLight ? (byte)70 : (byte)88));
+        ambient.GradientStops[0].Color = Color(ThemeCatalog.Ambient(theme, _artwork).WithAlpha(theme.IsLight ? (byte)140 : (byte)120));
         ambient.GradientStops[1].Color = Color(theme.Backdrop.WithAlpha(0));
+    }
+
+    private static Argb Alpha(double alpha) => new((byte)Math.Round(Math.Clamp(alpha, 0, 1) * 255), 255, 255, 255);
+
+    private static void SetStops(LinearGradientBrush brush, params Argb[] colors)
+    {
+        for (var index = 0; index < colors.Length && index < brush.GradientStops.Count; index++)
+            brush.GradientStops[index].Color = Color(colors[index]);
     }
 
     private static void Solid(string key, Argb color) => ((SolidColorBrush)Application.Current.Resources[key]).Color = Color(color);

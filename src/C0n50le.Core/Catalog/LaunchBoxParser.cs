@@ -13,7 +13,9 @@ public sealed record CatalogMatch(string Title, Uri Page, string Platform = "")
 }
 
 /// <summary>What the catalog has for one game: its texts and where its pictures are.</summary>
-public sealed record CatalogEntry(string Description, Uri? Cover, Uri? Background, double CoverAspect, string[] Details);
+/// <remarks>Logo is the transparent "Clear Logo" laid over the background on a card; Banner a wide picture with the title.</remarks>
+public sealed record CatalogEntry(string Description, Uri? Cover, Uri? Background, double CoverAspect, string[] Details,
+    Uri? Logo = null, Uri? Banner = null);
 
 /// <summary>
 /// Reads the pages of the public LaunchBox Games Database (search results, game details, image gallery). Pure, so it is
@@ -77,7 +79,13 @@ public static class LaunchBoxParser
                 developer.Length > 0 ? developer : Detail(details, "Publishers")
             }
             .Where(value => !string.IsNullOrWhiteSpace(value)).ToArray();
-        return new CatalogEntry(Text(description), cover?.Url, background?.Url, cover?.Aspect ?? 0, metadata);
+        var logo = media.Where(image => image.HasType("Clear Logo"))
+            .OrderByDescending(image => image.Label.Contains("(World)", StringComparison.OrdinalIgnoreCase)
+                || image.Label.Contains("(North America)", StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(image => image.Width).FirstOrDefault();
+        var banner = media.Where(image => image.HasType("Steam Banner") || image.HasType("Banner"))
+            .OrderByDescending(image => image.HasType("Steam Banner")).ThenByDescending(image => image.Width).FirstOrDefault();
+        return new CatalogEntry(Text(description), cover?.Url, background?.Url, cover?.Aspect ?? 0, metadata, logo?.Url, banner?.Url);
     }
 
     public static bool IsDetailsPage(Uri page) =>

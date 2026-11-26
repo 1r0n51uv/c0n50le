@@ -30,6 +30,7 @@ public sealed partial class MainWindow
             if (args.Pointer.PointerDeviceType != PointerDeviceType.Mouse) return;
             var point = args.GetCurrentPoint(Root).Position;
             _input.MouseMoved(point.X, point.Y, DateTimeOffset.Now);
+            if (_input.Mode == InputMode.MouseKeyboard) FocusUnderPointer(point);
         };
         Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((_, args) =>
         {
@@ -92,16 +93,11 @@ public sealed partial class MainWindow
 
     private void MoveFocus(int moves)
     {
-        if (_activeDialog is null && TourVisible) return;
+        if (TourVisible) return;
         var direction = (moves & ControllerButtons.Up) != 0 ? FocusNavigationDirection.Up
             : (moves & ControllerButtons.Down) != 0 ? FocusNavigationDirection.Down
             : (moves & ControllerButtons.Left) != 0 ? FocusNavigationDirection.Left
             : FocusNavigationDirection.Right;
-        if (_activeDialog is not null)
-        {
-            FocusManager.TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = _activeDialog.XamlRoot.Content });
-            return;
-        }
         var scope = ActiveLayer;
         var focused = FocusManager.GetFocusedElement(Root.XamlRoot) as DependencyObject;
         if (focused is null || !IsInside(focused, scope))
@@ -115,9 +111,10 @@ public sealed partial class MainWindow
 
     /// <summary>The part of the screen focus may move in: the topmost open layer.</summary>
     private UIElement ActiveLayer =>
-        Picker.Visibility == Visibility.Visible ? Picker
+        AlertOpen ? AlertLayer
+        : MenuOpen ? MenuLayer
         : SystemPage.Visibility == Visibility.Visible ? SystemPage
-        : HomePage;
+        : Stage;
 
     private static bool IsInside(DependencyObject element, DependencyObject scope)
     {
@@ -128,27 +125,23 @@ public sealed partial class MainWindow
 
     private void FocusFirst(UIElement scope)
     {
-        if (scope == HomePage) FocusSelection();
+        if (scope == Stage) FocusSelection();
         else if (scope == SystemPage) FocusCategory();
         else if (FocusManager.FindFirstFocusableElement(scope) is Control control) control.Focus(FocusState.Keyboard);
     }
 
     private void Confirm()
     {
-        if (_activeDialog is not null || !TourVisible)
-        {
-            ReturnHotkey.Invoke(FocusManager.GetFocusedElement(Root.XamlRoot));
-            return;
-        }
-        TourAdvance();
+        if (TourVisible && !AlertOpen) { TourAdvance(); return; }
+        ReturnHotkey.Invoke(FocusManager.GetFocusedElement(Root.XamlRoot));
     }
 
     /// <summary>B / Esc: closes the topmost thing, and from the home goes back to the desktop.</summary>
     private void GoBack()
     {
-        if (_activeDialog is not null) { _activeDialog.Hide(); return; }
+        if (AlertOpen) { DismissAlert(); return; }
         if (TourVisible) { EndTour(); return; }
-        if (Picker.Visibility == Visibility.Visible) { ClosePicker(); return; }
+        if (MenuOpen) { CloseMenu(); return; }
         if (SystemPage.Visibility == Visibility.Visible) { CloseSystem(); return; }
         Sounds.Play(UiSound.Back);
         HideHome();
@@ -156,14 +149,13 @@ public sealed partial class MainWindow
 
     private void OpenOptions()
     {
-        if (_activeDialog is not null || TourVisible || Picker.Visibility == Visibility.Visible) return;
-        if (SystemPage.Visibility == Visibility.Visible) return;
+        if (IsOverlayOpen || SystemPage.Visibility == Visibility.Visible) return;
         OpenCardMenu();
     }
 
     private void ToggleSystem()
     {
-        if (_activeDialog is not null || TourVisible || Picker.Visibility == Visibility.Visible) return;
+        if (IsOverlayOpen) return;
         if (SystemPage.Visibility == Visibility.Visible) CloseSystem();
         else OpenSystem();
     }
@@ -193,7 +185,7 @@ public sealed partial class MainWindow
                 ToggleSystem();
                 args.Handled = true;
                 break;
-            case VirtualKey.Enter when TourVisible && _activeDialog is null:
+            case VirtualKey.Enter when TourVisible && !AlertOpen:
                 TourAdvance();
                 args.Handled = true;
                 break;
@@ -213,19 +205,29 @@ public sealed partial class MainWindow
         {
             HideCursor();
             var focused = Root.XamlRoot is null ? null : FocusManager.GetFocusedElement(Root.XamlRoot) as Control;
-            if (_activeDialog is null && (focused is null || !IsInside(focused, ActiveLayer) || focused.FocusState == FocusState.Pointer))
+            if (focused is null || !IsInside(focused, ActiveLayer))
             {
                 if (focused is not null && IsInside(focused, ActiveLayer) && focused.Visibility == Visibility.Visible)
                     focused.Focus(FocusState.Keyboard);
                 else FocusFirst(ActiveLayer);
             }
         }
-        else
+        else RestoreCursor();
+    }
+
+    /// <summary>
+    /// With the mouse, pointing at something gives it the focus, as the Siri Remote's touch surface does on tvOS: the same
+    /// platter and lift show for mouse and controller, and there is never a second highlight.
+    /// </summary>
+    private void FocusUnderPointer(Windows.Foundation.Point point)
+    {
+        if (Root.XamlRoot is null || IntroVisible || TourVisible) return;
+        var layer = ActiveLayer;
+        foreach (var element in Microsoft.UI.Xaml.Media.VisualTreeHelper.FindElementsInHostCoordinates(point, Root))
         {
-            RestoreCursor();
-            // The focus ring is for the controller and the keyboard; a mouse user sees hover instead.
-            if (Root.XamlRoot is not null && FocusManager.GetFocusedElement(Root.XamlRoot) is Control control && control.FocusState == FocusState.Keyboard)
-                control.Focus(FocusState.Pointer);
+            if (element is not Button { IsEnabled: true, IsTabStop: true } button || !IsInside(button, layer)) continue;
+            if (button.FocusState == FocusState.Unfocused) button.Focus(FocusState.Pointer);
+            return;
         }
     }
 

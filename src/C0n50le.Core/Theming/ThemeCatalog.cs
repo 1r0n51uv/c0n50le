@@ -1,153 +1,145 @@
 namespace C0n50le.Core.Theming;
 
+/// <summary>Light or dark, like tvOS.</summary>
+public enum Appearance
+{
+    Dark,
+    Light
+}
+
 /// <summary>
-/// One look of the interface. Every control reads these tokens, never a color of its own, so a theme changes all of it
-/// at once and the sizes stay the same in every theme.
+/// How much Liquid Glass the materials (dock, menus, alerts, buttons) have: off is an opaque material; the three depths
+/// make it more see-through, with a brighter rim and sheen.
+/// </summary>
+public enum GlassDepth
+{
+    Off = 0,
+    Subtle = 1,
+    Medium = 2,
+    Deep = 3
+}
+
+/// <summary>
+/// The colours of the interface, taken from Apple's tvOS UI kit (Figma, 1920×1080). Every control reads these, never a
+/// colour of its own.
 /// </summary>
 public sealed record ThemeTokens
 {
-    public required string Id { get; init; }
-    /// <summary>The key of the theme's name in the string catalogs.</summary>
-    public string NameKey => "Theme_" + Id;
+    public required Appearance Appearance { get; init; }
+    public required GlassDepth Glass { get; init; }
+    /// <summary>The page behind everything when no artwork is shown.</summary>
     public required Argb Backdrop { get; init; }
-    /// <summary>The veil over the game's picture where the text is (left and bottom).</summary>
-    public required Argb Scrim { get; init; }
-    public required Argb Surface { get; init; }
-    public required Argb SurfaceRaised { get; init; }
-    public required Argb Border { get; init; }
+    /// <summary>The veil over the artwork, so text and materials stay readable.</summary>
+    public required Argb Overlay { get; init; }
+    /// <summary>Platters: dock, menus, alerts, unfocused buttons. Translucent when glass is on.</summary>
+    public required Argb Material { get; init; }
+    public required Argb MaterialStroke { get; init; }
+    /// <summary>Unfocused controls on a material: alert buttons, text fields.</summary>
+    public required Argb Control { get; init; }
     public required Argb Text { get; init; }
-    public required Argb TextMuted { get; init; }
-    public required Argb Accent { get; init; }
-    public required Argb OnAccent { get; init; }
+    /// <summary>Secondary text: captions, values, headers (white or black at 50–60%).</summary>
+    public required Argb TextSecondary { get; init; }
+    /// <summary>The focused element's platter (white at 90%) and its text.</summary>
     public required Argb Focus { get; init; }
-    public double CornerSmall { get; init; } = 12;
-    public double CornerMedium { get; init; } = 20;
-    public double CornerLarge { get; init; } = 28;
-    /// <summary>Surfaces are see-through acrylic with a lit edge (the liquid glass of Console Mode).</summary>
-    public bool Glass { get; init; }
-    /// <summary>The accent and the surfaces take the color of the selected game's picture.</summary>
-    public bool FollowsArtwork { get; init; }
-    public bool IsLight { get; init; }
+    public required Argb FocusText { get; init; }
+    /// <summary>The dim behind an alert.</summary>
+    public required Argb Scrim { get; init; }
+    public required Argb Separator { get; init; }
+    /// <summary>How strong the glass rim and sheen are, 0 (off) to 1 (deep).</summary>
+    public double Sheen { get; init; }
+    /// <summary>Tint opacity of the glass: how much of the material colour covers the blur.</summary>
+    public double TintOpacity { get; init; } = 1;
+    public bool IsLight => Appearance == Appearance.Light;
+    public bool IsGlass => Glass != GlassDepth.Off;
 }
 
-/// <summary>The themes of c0n50le.</summary>
+/// <summary>The two appearances and the glass depths.</summary>
 public static class ThemeCatalog
 {
-    public const string DefaultId = "night";
+    public const string DarkId = "dark";
+    public const string LightId = "light";
+    public const string DefaultId = DarkId;
+    public const GlassDepth DefaultGlass = GlassDepth.Medium;
 
-    public static ThemeTokens Night { get; } = new()
+    public static IReadOnlyList<string> Ids { get; } = [DarkId, LightId];
+    public static IReadOnlyList<GlassDepth> Depths { get; } = [GlassDepth.Off, GlassDepth.Subtle, GlassDepth.Medium, GlassDepth.Deep];
+
+    public static string Normalize(string? id) => string.Equals(id, LightId, StringComparison.OrdinalIgnoreCase) ? LightId : DarkId;
+
+    public static GlassDepth NormalizeGlass(int value) => Enum.IsDefined(typeof(GlassDepth), value) ? (GlassDepth)value : DefaultGlass;
+
+    public static ThemeTokens Get(string? id, GlassDepth glass) =>
+        Normalize(id) == LightId ? Light(glass) : Dark(glass);
+
+    /// <summary>The material's alpha for each depth: opaque when off, the kit's 50% at medium.</summary>
+    internal static byte MaterialAlpha(GlassDepth glass) => glass switch
     {
-        Id = "night",
-        Backdrop = Argb.FromHex("#07090D"),
-        Scrim = Argb.FromHex("#F207090D"),
-        Surface = Argb.FromHex("#F0131922"),
-        SurfaceRaised = Argb.FromHex("#FF1F2835"),
-        Border = Argb.FromHex("#2EFFFFFF"),
-        Text = Argb.FromHex("#F4F7FB"),
-        TextMuted = Argb.FromHex("#A9B4C2"),
-        Accent = Argb.FromHex("#5EE6CF"),
-        OnAccent = Argb.FromHex("#04211D"),
-        Focus = Argb.FromHex("#FFFFFF")
+        GlassDepth.Off => 0xF5,
+        GlassDepth.Subtle => 0xB3,
+        GlassDepth.Medium => 0x80,
+        _ => 0x52
     };
 
-    public static ThemeTokens Glass { get; } = new()
+    private static double Sheen(GlassDepth glass) => glass switch
     {
-        Id = "glass",
-        Backdrop = Argb.FromHex("#080B12"),
-        Scrim = Argb.FromHex("#D90A0E17"),
-        Surface = Argb.FromHex("#B30D141D"),
-        SurfaceRaised = Argb.FromHex("#D91A2433"),
-        Border = Argb.FromHex("#66FFFFFF"),
+        GlassDepth.Off => 0,
+        GlassDepth.Subtle => 0.35,
+        GlassDepth.Medium => 0.6,
+        _ => 1
+    };
+
+    private static double Tint(GlassDepth glass) => glass switch
+    {
+        GlassDepth.Off => 1,
+        GlassDepth.Subtle => 0.78,
+        GlassDepth.Medium => 0.55,
+        _ => 0.32
+    };
+
+    public static ThemeTokens Dark(GlassDepth glass) => new()
+    {
+        Appearance = Appearance.Dark,
+        Glass = glass,
+        Backdrop = Argb.FromHex("#0F0F10"),
+        Overlay = Argb.FromHex("#991E1E1E"),
+        Material = Argb.FromHex("#1E1E1E").WithAlpha(MaterialAlpha(glass)),
+        MaterialStroke = Argb.FromHex(glass == GlassDepth.Off ? "#14FFFFFF" : "#1AFFFFFF"),
+        Control = Argb.FromHex("#FF3A3A3C"),
         Text = Argb.FromHex("#FFFFFF"),
-        TextMuted = Argb.FromHex("#C9D3E0"),
-        Accent = Argb.FromHex("#8EE8FF"),
-        OnAccent = Argb.FromHex("#04212B"),
-        Focus = Argb.FromHex("#FFFFFF"),
-        CornerSmall = 14,
-        CornerMedium = 22,
-        CornerLarge = 30,
-        Glass = true,
-        FollowsArtwork = true
+        TextSecondary = Argb.FromHex("#99FFFFFF"),
+        Focus = Argb.FromHex("#E5FFFFFF"),
+        FocusText = Argb.FromHex("#000000"),
+        Scrim = Argb.FromHex("#80000000"),
+        Separator = Argb.FromHex("#26FFFFFF"),
+        Sheen = Sheen(glass),
+        TintOpacity = Tint(glass)
     };
 
-    public static ThemeTokens GameColor { get; } = new()
+    public static ThemeTokens Light(GlassDepth glass) => new()
     {
-        Id = "game",
-        Backdrop = Argb.FromHex("#0A0C10"),
-        Scrim = Argb.FromHex("#EB0A0C10"),
-        Surface = Argb.FromHex("#F2161A22"),
-        SurfaceRaised = Argb.FromHex("#FF232935"),
-        Border = Argb.FromHex("#33FFFFFF"),
-        Text = Argb.FromHex("#F6F7F9"),
-        TextMuted = Argb.FromHex("#B3BAC6"),
-        Accent = Argb.FromHex("#FFB36B"),
-        OnAccent = Argb.FromHex("#2A1600"),
-        Focus = Argb.FromHex("#FFFFFF"),
-        FollowsArtwork = true
+        Appearance = Appearance.Light,
+        Glass = glass,
+        Backdrop = Argb.FromHex("#EFEFF4"),
+        Overlay = Argb.FromHex("#B2E1E1E1"),
+        Material = Argb.FromHex("#FEFDFF").WithAlpha(MaterialAlpha(glass)),
+        MaterialStroke = Argb.FromHex("#29FFFFFF"),
+        Control = Argb.FromHex("#FFE5E5EA"),
+        Text = Argb.FromHex("#000000"),
+        TextSecondary = Argb.FromHex("#99000000"),
+        Focus = Argb.FromHex("#F2FFFFFF"),
+        FocusText = Argb.FromHex("#000000"),
+        Scrim = Argb.FromHex("#66000000"),
+        Separator = Argb.FromHex("#1F000000"),
+        Sheen = Sheen(glass),
+        TintOpacity = Tint(glass)
     };
 
-    public static ThemeTokens Dawn { get; } = new()
+    /// <summary>A soft colour from the focused game's artwork, for the ambient glow behind the home.</summary>
+    public static Argb Ambient(ThemeTokens theme, Argb? artwork)
     {
-        Id = "dawn",
-        Backdrop = Argb.FromHex("#F3EEE5"),
-        Scrim = Argb.FromHex("#EBF3EEE5"),
-        Surface = Argb.FromHex("#F5FBF8F2"),
-        SurfaceRaised = Argb.FromHex("#FFFFFFFF"),
-        Border = Argb.FromHex("#2E2B2118"),
-        Text = Argb.FromHex("#1D1B18"),
-        TextMuted = Argb.FromHex("#5A534A"),
-        Accent = Argb.FromHex("#B4501A"),
-        OnAccent = Argb.FromHex("#FFFFFF"),
-        Focus = Argb.FromHex("#1D1B18"),
-        IsLight = true
-    };
-
-    public static ThemeTokens Arcade { get; } = new()
-    {
-        Id = "arcade",
-        Backdrop = Argb.FromHex("#000000"),
-        Scrim = Argb.FromHex("#F0000000"),
-        Surface = Argb.FromHex("#F50B0A10"),
-        SurfaceRaised = Argb.FromHex("#FF1A1422"),
-        Border = Argb.FromHex("#FF3D2D52"),
-        Text = Argb.FromHex("#FFFFFF"),
-        TextMuted = Argb.FromHex("#BBAED0"),
-        Accent = Argb.FromHex("#FF2E88"),
-        OnAccent = Argb.FromHex("#0A0008"),
-        Focus = Argb.FromHex("#00F0FF"),
-        CornerSmall = 4,
-        CornerMedium = 6,
-        CornerLarge = 8
-    };
-
-    public static IReadOnlyList<ThemeTokens> All { get; } = [Night, Glass, GameColor, Dawn, Arcade];
-
-    public static ThemeTokens Get(string? id) =>
-        All.FirstOrDefault(theme => string.Equals(theme.Id, id, StringComparison.OrdinalIgnoreCase)) ?? Night;
-
-    /// <summary>
-    /// The theme with the selected game's color worked in, for the themes that follow the artwork: the accent becomes
-    /// the picture's color made readable on the surfaces, and the surfaces take a little of its hue.
-    /// </summary>
-    public static ThemeTokens WithArtwork(ThemeTokens theme, Argb? artwork)
-    {
-        if (!theme.FollowsArtwork || artwork is not { } color) return theme;
+        if (artwork is not { } color) return theme.Backdrop;
         var (h, s, _) = color.ToHsl();
-        if (s < 0.12) return theme;
-        var surfaceBase = theme.Surface.Over(theme.Backdrop);
-        var accent = Argb.FromHsl(h, Math.Clamp(s, 0.45, 0.85), 0.68);
-        for (var lightness = 0.68; lightness < 0.92 && Argb.Contrast(accent, surfaceBase) < 4.5; lightness += 0.04)
-            accent = Argb.FromHsl(h, Math.Clamp(s, 0.45, 0.85), lightness);
-        var tint = Argb.FromHsl(h, Math.Min(s, 0.5), 0.14);
-        var surfaceMix = theme.Glass ? 0.55 : 0.35;
-        return theme with
-        {
-            Accent = accent,
-            OnAccent = Argb.FromHsl(h, 0.6, 0.12),
-            Surface = theme.Surface.Blend(tint with { A = theme.Surface.A }, surfaceMix),
-            SurfaceRaised = theme.SurfaceRaised.Blend(Argb.FromHsl(h, Math.Min(s, 0.5), 0.22) with { A = theme.SurfaceRaised.A }, surfaceMix),
-            Scrim = theme.Scrim.Blend(Argb.FromHsl(h, Math.Min(s, 0.5), 0.06) with { A = theme.Scrim.A }, 0.5)
-        };
+        return Argb.FromHsl(h, Math.Min(s, 0.6), theme.IsLight ? 0.82 : 0.22);
     }
 }
 
@@ -158,16 +150,13 @@ public static class UiScale
 
     public static double Clamp(double value) => double.IsFinite(value) ? Math.Clamp(value, Choices[0], Choices[^1]) : 1.0;
 
-    /// <summary>The height the interface is laid out for, in its own pixels (adapted from Console Mode).</summary>
+    /// <summary>The height the interface is laid out for, in its own pixels (the tvOS kit's 1920×1080).</summary>
     public const double DesignHeight = 1080;
 
     /// <summary>The narrowest it is laid out for: a narrow window shrinks it instead of cutting it.</summary>
     public const double MinimumWidth = 1280;
 
-    /// <summary>
-    /// How much the interface is grown in a window of that size: the window's height over 1080 (less when too narrow),
-    /// times the scale chosen in System → Screen. A 720p window and a 4K TV show the same layout.
-    /// </summary>
+    /// <summary>How much the interface is grown in a window of that size, times the chosen scale.</summary>
     public static double For(double width, double height, double chosen)
     {
         if (width <= 0 || height <= 0) return Clamp(chosen);
