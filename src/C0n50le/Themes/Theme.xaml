@@ -1,0 +1,365 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="using:C0n50le.Ui">
+
+    <!-- Brushes: ThemeManager recolours these same objects when the theme or the selected game changes, so everything
+         that uses them follows at once. The values here are the Night theme. -->
+    <SolidColorBrush x:Key="BackdropBrush" Color="#FF07090D"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#F0131922"/>
+    <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#FF1F2835"/>
+    <SolidColorBrush x:Key="HairlineBrush" Color="#2EFFFFFF"/>
+    <SolidColorBrush x:Key="TextBrush" Color="#FFF4F7FB"/>
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#FFA9B4C2"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="#FF5EE6CF"/>
+    <SolidColorBrush x:Key="OnAccentBrush" Color="#FF04211D"/>
+    <SolidColorBrush x:Key="FocusBrush" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="DimBrush" Color="#D907090D"/>
+    <SolidColorBrush x:Key="HoverBrush" Color="#1FFFFFFF"/>
+    <SolidColorBrush x:Key="TonalBrush" Color="#24FFFFFF"/>
+    <AcrylicBrush x:Key="GlassBrush" TintColor="#0D141D" TintOpacity="0.42" TintLuminosityOpacity="0.6" FallbackColor="#E6131A24" Opacity="0"/>
+    <LinearGradientBrush x:Key="EdgeBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#2EFFFFFF" Offset="0"/>
+        <GradientStop Color="#2EFFFFFF" Offset="0.4"/>
+        <GradientStop Color="#2EFFFFFF" Offset="0.62"/>
+        <GradientStop Color="#2EFFFFFF" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="ScrimLeftBrush" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#F207090D" Offset="0"/>
+        <GradientStop Color="#B807090D" Offset="0.45"/>
+        <GradientStop Color="#2607090D" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="ScrimBottomBrush" StartPoint="0,1" EndPoint="0,0">
+        <GradientStop Color="#F507090D" Offset="0"/>
+        <GradientStop Color="#0007090D" Offset="0.6"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="ScrimTopBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#B807090D" Offset="0"/>
+        <GradientStop Color="#0007090D" Offset="1"/>
+    </LinearGradientBrush>
+    <RadialGradientBrush x:Key="AmbientBrush" Center="0.78,0.18" GradientOrigin="0.78,0.18" RadiusX="0.8" RadiusY="1">
+        <GradientStop Color="#405EE6CF" Offset="0"/>
+        <GradientStop Color="#0007090D" Offset="1"/>
+    </RadialGradientBrush>
+
+    <!-- Type: one family, a few sizes. -->
+    <FontFamily x:Key="AppFont">ms-appx:///Assets/Fonts/InterVariable.ttf#Inter Variable</FontFamily>
+    <StaticResource x:Key="ContentControlThemeFontFamily" ResourceKey="AppFont"/>
+
+    <!-- Built-in controls (text boxes, dialogs, lists) take the theme's colours. -->
+    <StaticResource x:Key="ContentDialogBackground" ResourceKey="SurfaceRaisedBrush"/>
+    <StaticResource x:Key="ContentDialogForeground" ResourceKey="TextBrush"/>
+    <StaticResource x:Key="ContentDialogBorderBrush" ResourceKey="HairlineBrush"/>
+    <StaticResource x:Key="ContentDialogTopOverlay" ResourceKey="SurfaceRaisedBrush"/>
+    <StaticResource x:Key="TextControlForeground" ResourceKey="TextBrush"/>
+    <StaticResource x:Key="TextControlForegroundPointerOver" ResourceKey="TextBrush"/>
+    <StaticResource x:Key="TextControlForegroundFocused" ResourceKey="TextBrush"/>
+    <StaticResource x:Key="TextControlBackground" ResourceKey="SurfaceBrush"/>
+    <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="SurfaceBrush"/>
+    <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="SurfaceBrush"/>
+    <StaticResource x:Key="TextControlBorderBrush" ResourceKey="HairlineBrush"/>
+    <StaticResource x:Key="TextControlBorderBrushPointerOver" ResourceKey="HairlineBrush"/>
+    <StaticResource x:Key="TextControlBorderBrushFocused" ResourceKey="AccentBrush"/>
+    <StaticResource x:Key="TextControlHeaderForeground" ResourceKey="TextMutedBrush"/>
+    <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="TextMutedBrush"/>
+    <StaticResource x:Key="ListViewItemForeground" ResourceKey="TextBrush"/>
+    <StaticResource x:Key="ListViewItemBackgroundSelected" ResourceKey="TonalBrush"/>
+    <StaticResource x:Key="ListViewItemBackgroundSelectedPointerOver" ResourceKey="TonalBrush"/>
+    <StaticResource x:Key="ListViewItemBackgroundSelectedPressed" ResourceKey="TonalBrush"/>
+    <StaticResource x:Key="ListViewItemBackgroundPointerOver" ResourceKey="HoverBrush"/>
+    <StaticResource x:Key="ListViewItemSelectionIndicatorBrush" ResourceKey="AccentBrush"/>
+    <StaticResource x:Key="ListViewItemSelectionIndicatorPointerOverBrush" ResourceKey="AccentBrush"/>
+    <StaticResource x:Key="ListViewItemSelectionIndicatorPressedBrush" ResourceKey="AccentBrush"/>
+    <StaticResource x:Key="AccentFillColorDefaultBrush" ResourceKey="AccentBrush"/>
+    <StaticResource x:Key="TextControlSelectionHighlightColor" ResourceKey="AccentBrush"/>
+
+    <!-- The surface every button is drawn on: glass layer (only visible in the Glass theme), fill, hover, lit edge,
+         selection edge (set by code) and the focus ring, which only shows for controller and keyboard focus. -->
+    <ControlTemplate x:Key="SurfaceTemplate" TargetType="Button">
+        <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+            <Grid.RenderTransform>
+                <ScaleTransform x:Name="Scale"/>
+            </Grid.RenderTransform>
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualStateGroup.Transitions>
+                        <VisualTransition To="Pressed" GeneratedDuration="0:0:0.08"/>
+                        <VisualTransition GeneratedDuration="0:0:0.18">
+                            <VisualTransition.GeneratedEasingFunction>
+                                <CubicEase EasingMode="EaseOut"/>
+                            </VisualTransition.GeneratedEasingFunction>
+                        </VisualTransition>
+                    </VisualStateGroup.Transitions>
+                    <VisualState x:Name="Normal"/>
+                    <VisualState x:Name="PointerOver">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="0.97" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="0.97" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="Opacity" To="0.4" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                </VisualStateGroup>
+                <VisualStateGroup x:Name="FocusStates">
+                    <VisualState x:Name="Unfocused"/>
+                    <VisualState x:Name="PointerFocused"/>
+                    <VisualState x:Name="Focused">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Ring" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                        </Storyboard>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+            <Border Background="{StaticResource GlassBrush}" CornerRadius="{TemplateBinding CornerRadius}"/>
+            <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"/>
+            <Border x:Name="Hover" Opacity="0" Background="{StaticResource HoverBrush}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+            <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              CornerRadius="{TemplateBinding CornerRadius}"
+                              AutomationProperties.AccessibilityView="Raw"/>
+            <Border BorderBrush="{StaticResource EdgeBrush}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+            <Border BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+            <Border x:Name="Ring" Opacity="0" Margin="-7" BorderBrush="{StaticResource FocusBrush}" BorderThickness="2.5" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+        </Grid>
+    </ControlTemplate>
+    <!-- The same without glass layer and lit edge: icons and list entries that sit flat on the page in every theme. -->
+    <ControlTemplate x:Key="PlainTemplate" TargetType="Button">
+        <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+            <Grid.RenderTransform>
+                <ScaleTransform x:Name="Scale"/>
+            </Grid.RenderTransform>
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualStateGroup.Transitions>
+                        <VisualTransition To="Pressed" GeneratedDuration="0:0:0.08"/>
+                        <VisualTransition GeneratedDuration="0:0:0.18">
+                            <VisualTransition.GeneratedEasingFunction>
+                                <CubicEase EasingMode="EaseOut"/>
+                            </VisualTransition.GeneratedEasingFunction>
+                        </VisualTransition>
+                    </VisualStateGroup.Transitions>
+                    <VisualState x:Name="Normal"/>
+                    <VisualState x:Name="PointerOver">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="0.97" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="0.97" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="Opacity" To="0.4" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                </VisualStateGroup>
+                <VisualStateGroup x:Name="FocusStates">
+                    <VisualState x:Name="Unfocused"/>
+                    <VisualState x:Name="PointerFocused"/>
+                    <VisualState x:Name="Focused">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Ring" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                        </Storyboard>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+            <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"/>
+            <Border x:Name="Hover" Opacity="0" Background="{StaticResource HoverBrush}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+            <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              CornerRadius="{TemplateBinding CornerRadius}"
+                              AutomationProperties.AccessibilityView="Raw"/>
+            <Border BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+            <Border x:Name="Ring" Opacity="0" Margin="-7" BorderBrush="{StaticResource FocusBrush}" BorderThickness="2.5" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+        </Grid>
+    </ControlTemplate>
+
+
+    <Style x:Key="SurfaceButton" TargetType="Button">
+        <Setter Property="Template" Value="{StaticResource SurfaceTemplate}"/>
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+        <Setter Property="UseSystemFocusVisuals" Value="False"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="ui:Corners.Size" Value="Medium"/>
+    </Style>
+
+    <!-- 48 high, icon 22 + text 18, same horizontal padding everywhere. -->
+    <Style x:Key="PillButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
+        <Setter Property="Background" Value="{StaticResource TonalBrush}"/>
+        <Setter Property="Height" Value="48"/>
+        <Setter Property="MinWidth" Value="48"/>
+        <Setter Property="Padding" Value="20,0"/>
+        <Setter Property="FontSize" Value="18"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="ui:Corners.Size" Value="Small"/>
+    </Style>
+
+    <!-- An icon on its own, like the top bar of Console Mode: no fill until pointed at or focused. -->
+    <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
+        <Setter Property="Template" Value="{StaticResource PlainTemplate}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Width" Value="56"/>
+        <Setter Property="Height" Value="56"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="ui:Corners.Size" Value="Small"/>
+    </Style>
+
+    <Style x:Key="IconPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
+        <Setter Property="Width" Value="48"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+
+    <!-- The main action: 56 high, filled with the accent. -->
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
+        <Setter Property="Height" Value="56"/>
+        <Setter Property="MinWidth" Value="180"/>
+        <Setter Property="Padding" Value="28,0"/>
+        <Setter Property="FontSize" Value="20"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+        <Setter Property="ui:Corners.Size" Value="Small"/>
+    </Style>
+
+    <Style x:Key="RoundButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
+        <Setter Property="Background" Value="{StaticResource TonalBrush}"/>
+        <Setter Property="Width" Value="56"/>
+        <Setter Property="Height" Value="56"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="ui:Corners.Size" Value="Small"/>
+    </Style>
+
+    <!-- A card has one edge only: the code draws it in the focus colour on the selected card, for mouse and controller
+         alike. No focus ring or hover veil of its own, so there is never a second border. -->
+    <ControlTemplate x:Key="CardTemplate" TargetType="Button">
+        <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+            <Grid.RenderTransform>
+                <ScaleTransform x:Name="Scale"/>
+            </Grid.RenderTransform>
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualStateGroup.Transitions>
+                        <VisualTransition To="Pressed" GeneratedDuration="0:0:0.08"/>
+                        <VisualTransition GeneratedDuration="0:0:0.18"/>
+                    </VisualStateGroup.Transitions>
+                    <VisualState x:Name="Normal"/>
+                    <VisualState x:Name="PointerOver"/>
+                    <VisualState x:Name="Pressed">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="0.97" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="0.97" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="Opacity" To="0.4" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+            <Border Background="{StaticResource GlassBrush}" CornerRadius="{TemplateBinding CornerRadius}"/>
+            <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"/>
+            <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              CornerRadius="{TemplateBinding CornerRadius}"
+                              AutomationProperties.AccessibilityView="Raw"/>
+            <Border BorderBrush="{StaticResource EdgeBrush}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+            <Border BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+        </Grid>
+    </ControlTemplate>
+
+    <Style x:Key="GameCard" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
+        <Setter Property="Template" Value="{StaticResource CardTemplate}"/>
+        <Setter Property="Height" Value="280"/>
+        <Setter Property="Width" Value="280"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Background" Value="{StaticResource SurfaceRaisedBrush}"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="ui:Corners.Size" Value="Large"/>
+    </Style>
+
+    <Style x:Key="CategoryButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
+        <Setter Property="Template" Value="{StaticResource PlainTemplate}"/>
+        <Setter Property="Height" Value="64"/>
+        <Setter Property="Padding" Value="20,0"/>
+        <Setter Property="FontSize" Value="20"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    </Style>
+
+    <Style x:Key="RowButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
+        <Setter Property="MinHeight" Value="80"/>
+        <Setter Property="Padding" Value="28,12"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    </Style>
+
+    <Style x:Key="OptionButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
+        <Setter Property="Height" Value="64"/>
+        <Setter Property="Padding" Value="24,0"/>
+        <Setter Property="FontSize" Value="20"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    </Style>
+
+    <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource SurfaceButton}">
+        <Setter Property="Background" Value="{StaticResource TonalBrush}"/>
+        <Setter Property="MinHeight" Value="44"/>
+        <Setter Property="MinWidth" Value="120"/>
+        <Setter Property="Padding" Value="20,0"/>
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="ui:Corners.Size" Value="Small"/>
+    </Style>
+
+    <!-- The confirming button of a dialog: the accent, same size and corners as Cancel. -->
+    <Style x:Key="DialogPrimaryButton" TargetType="Button" BasedOn="{StaticResource DialogButton}">
+        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <Style x:Key="SurfacePanel" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="ui:Corners.Size" Value="Large"/>
+    </Style>
+
+    <Style x:Key="TextField" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+        <Setter Property="FontSize" Value="17"/>
+        <Setter Property="MinHeight" Value="44"/>
+        <Setter Property="MinWidth" Value="380"/>
+        <Setter Property="Padding" Value="14,9"/>
+        <Setter Property="ui:Corners.Size" Value="Small"/>
+    </Style>
+</ResourceDictionary>
