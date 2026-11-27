@@ -52,6 +52,19 @@ public sealed class Artwork
     public string Logo { get; set; } = "";
     /// <summary>A wide picture with the title, for a card when there is no logo.</summary>
     public string Banner { get; set; } = "";
+    /// <summary>The picture chosen for the card in the detail page; it replaces the automatic one.</summary>
+    public string CardImage { get; set; } = "";
+    /// <summary>The backgrounds chosen in the detail page, shown in turn behind the home.</summary>
+    public List<string> Backgrounds { get; set; } = [];
+
+    /// <summary>The backgrounds to show: the chosen ones still on disk, else the catalog's.</summary>
+    public IReadOnlyList<string> BackgroundsToShow(Func<string, bool> exists)
+    {
+        var chosen = (Backgrounds ?? []).Where(path => path.Length > 0 && exists(path)).ToList();
+        if (chosen.Count > 0) return chosen;
+        return HasCatalogMedia && Background.Length > 0 && exists(Background) ? [Background] : [];
+    }
+
     /// <summary>Which pictures were fetched: older art (without logo and banner) is completed by itself.</summary>
     public int MediaVersion { get; set; }
 

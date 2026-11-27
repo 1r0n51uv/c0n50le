@@ -38,12 +38,15 @@ public sealed class ThemeTests
     {
         foreach (var id in ThemeCatalog.Ids)
         {
-            var alphas = ThemeCatalog.Depths.Select(depth => ThemeCatalog.Get(id, depth).Material.A).ToList();
+            var alphas = ThemeCatalog.Depths.Where(depth => depth != GlassDepth.Liquid).Select(depth => ThemeCatalog.Get(id, depth).Material.A).ToList();
             Assert.Equal(alphas.OrderByDescending(alpha => alpha), alphas);
-            var sheens = ThemeCatalog.Depths.Select(depth => ThemeCatalog.Get(id, depth).Sheen).ToList();
+            // Liquid glass draws its own glare, so only the acrylic depths grow their sheen.
+            var sheens = ThemeCatalog.Depths.Where(depth => depth != GlassDepth.Liquid).Select(depth => ThemeCatalog.Get(id, depth).Sheen).ToList();
             Assert.Equal(sheens.OrderBy(sheen => sheen), sheens);
             Assert.Equal(0, ThemeCatalog.Get(id, GlassDepth.Off).Sheen);
             Assert.False(ThemeCatalog.Get(id, GlassDepth.Off).IsGlass);
+            Assert.True(ThemeCatalog.Get(id, GlassDepth.Liquid).IsLiquid);
+            Assert.False(ThemeCatalog.Get(id, GlassDepth.Deep).IsLiquid);
         }
     }
 
@@ -119,4 +122,20 @@ public sealed class ThemeTests
 
     [Fact]
     public void Scale_is_clamped() => Assert.Equal(1.0, UiScale.Clamp(double.NaN));
+}
+
+public sealed class DisplayTextTests
+{
+    [Theory]
+    [InlineData(3840, 2160, 119.88, "LG TV SSCR2 · 4K · 120 Hz")]
+    [InlineData(2560, 1440, 165, "LG TV SSCR2 · 1440p · 165 Hz")]
+    [InlineData(1920, 1080, 0, "LG TV SSCR2 · 1080p")]
+    [InlineData(3440, 1440, 100, "LG TV SSCR2 · 1440p · 100 Hz")]
+    [InlineData(1600, 900, 60, "LG TV SSCR2 · 1600×900 · 60 Hz")]
+    public void Screens_are_named_briefly(int width, int height, double hertz, string expected) =>
+        Assert.Equal(expected, Core.Theming.DisplayText.Label("LG TV SSCR2", width, height, hertz));
+
+    [Fact]
+    public void Long_names_are_cut() =>
+        Assert.StartsWith("A very long monitor name th…", Core.Theming.DisplayText.Label("A very long monitor name that goes on", 1920, 1080, 60));
 }

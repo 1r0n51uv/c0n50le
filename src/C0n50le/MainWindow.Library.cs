@@ -68,7 +68,7 @@ public sealed partial class MainWindow
             if (_selected < 0 && _games.Count > 0) _selected = 0;
             RenderCards();
             RefreshHero();
-            if (AppWindow.IsVisible && !IsOverlayOpen && SystemPage.Visibility == Visibility.Collapsed && !IntroVisible) FocusSelection();
+            if (AppWindow.IsVisible && !IsOverlayOpen && !PageOpen && !IntroVisible) FocusSelection();
             AppLog.Write($"Libreria: {_games.Count} giochi ({_detected.Count} trovati)");
             if (firstLoad)
             {
@@ -217,8 +217,8 @@ public sealed partial class MainWindow
             var title = LibraryOrder.DisplayTitle(game, art);
             var running = _session?.Game.Id == game.Id;
             AutomationProperties.SetName(tile.Card, title);
-            var key = (title, art?.Background ?? "", art?.Logo ?? "", art?.Banner ?? "", art?.Card ?? "", running);
-            if (tile.Card.Tag is ValueTuple<string, string, string, string, string, bool> previous && previous == key) continue;
+            var key = string.Join("|", title, art?.Background, art?.Logo, art?.Banner, art?.Card, art?.CardImage, running);
+            if (tile.Card.Tag is string previous && previous == key) continue;
             tile.Card.Tag = key;
             tile.Card.Content = CardContent(title, art, running);
         }
@@ -232,7 +232,10 @@ public sealed partial class MainWindow
     {
         var grid = new Grid { CornerRadius = new CornerRadius(30) };
         var media = art is { HasCatalogMedia: true } ? art : null;
-        if (LoadImage(media?.Background, 640) is { } background && File.Exists(media!.Logo))
+        // The picture chosen in the detail page wins over the automatic composition.
+        if (LoadImage(art?.CardImage, 640) is { } chosen)
+            grid.Children.Add(new Image { Source = chosen, Stretch = Stretch.UniformToFill });
+        else if (LoadImage(media?.Background, 640) is { } background && File.Exists(media!.Logo))
         {
             grid.Children.Add(new Image { Source = background, Stretch = Stretch.UniformToFill });
             grid.Children.Add(new Border { Background = new SolidColorBrush(Windows.UI.Color.FromArgb(60, 0, 0, 0)) });
@@ -347,8 +350,12 @@ public sealed partial class MainWindow
         HeroLogo.Source = logo;
         HeroLogo.Visibility = logo is null ? Visibility.Collapsed : Visibility.Visible;
         HeroTitleText.Visibility = logo is null ? Visibility.Visible : Visibility.Collapsed;
-        var background = media is not null && File.Exists(media.Background) ? media.Background : null;
+        // One or more backgrounds: the first now, the others in turn while the game stays selected.
+        _heroBackgrounds = art?.BackgroundsToShow(File.Exists) ?? [];
+        _heroBackground = 0;
+        var background = _heroBackgrounds.Count > 0 ? _heroBackgrounds[0] : null;
         ShowBackdrop(background);
+        RestartBackdropRotation();
         _ = UpdatePaletteAsync(background ?? media?.Card);
         Motion.Entrance(Hero, _prefs.ReduceMotion);
         UpdateCards();
@@ -413,6 +420,30 @@ public sealed partial class MainWindow
         var color = await ArtworkPalette.ReadAsync(path);
         if (request != _paletteRequest || _exiting) return;
         ThemeManager.UseArtwork(color);
+    }
+
+    private IReadOnlyList<string> _heroBackgrounds = [];
+    private int _heroBackground;
+    private DispatcherQueueTimer? _backdropTimer;
+
+    private void RestartBackdropRotation()
+    {
+        _backdropTimer ??= CreateBackdropTimer();
+        _backdropTimer.Stop();
+        if (_heroBackgrounds.Count > 1) _backdropTimer.Start();
+    }
+
+    private DispatcherQueueTimer CreateBackdropTimer()
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromSeconds(10);
+        timer.Tick += (_, _) =>
+        {
+            if (_heroBackgrounds.Count < 2 || _heroShowsAction || !AppWindow.IsVisible || PageOpen) return;
+            _heroBackground = (_heroBackground + 1) % _heroBackgrounds.Count;
+            ShowBackdrop(_heroBackgrounds[_heroBackground]);
+        };
+        return timer;
     }
 
     private void ShowBackdrop(string? path)
@@ -601,6 +632,12 @@ public sealed partial class MainWindow
     private void ApplyArtwork(Game game, CatalogMatch match, CatalogEntry entry, CatalogFiles files)
     {
         var art = _prefs.ArtFor(game);
+        // Another title: the pictures chosen for the previous one no longer belong to this game.
+        if (art.CatalogId != match.Id)
+        {
+            art.CardImage = "";
+            art.Backgrounds = [];
+        }
         string Store(string? file, string kind) =>
             file is not null ? Core.Settings.Preferences.StoreImage(_paths.ArtFolder, game.Id, kind, file) : "";
         art.Card = Store(files.Cover, "card");

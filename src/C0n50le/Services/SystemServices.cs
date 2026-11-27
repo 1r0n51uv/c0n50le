@@ -151,52 +151,115 @@ public static class ArtworkPalette
 /// <summary>The screens the home can open on.</summary>
 public static class Displays
 {
-    private const uint DisplayDeviceActive = 0x00000001;
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct DisplayDevice
-    {
-        public int Size;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString;
-        public uint StateFlags;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceId;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey;
-    }
-
-    [DllImport("user32.dll", EntryPoint = "EnumDisplayDevicesW", CharSet = CharSet.Unicode)]
-    private static extern bool EnumDisplayDevices(string? device, uint index, ref DisplayDevice displayDevice, uint flags);
-
     public sealed record Choice(string Id, string Label);
 
-    public static string ActiveLabel(DisplayArea? area, string language)
+    /// <summary>
+    /// A short line for the app bar: the TV or monitor's own name (from its EDID, e.g. "LG TV SSCR2"), its resolution
+    /// and refresh rate ("4K · 120 Hz"), for the screen the window is on.
+    /// </summary>
+    public static string ActiveLabel(nint window, string language)
     {
-        var displays = All();
-        var index = displays.FindIndex(display => display.DisplayId.Value == area?.DisplayId.Value);
-        var number = Math.Max(0, index);
-        var name = MonitorNames().ElementAtOrDefault(number);
-        if (string.IsNullOrWhiteSpace(name)) name = language == "it-IT" ? $"Schermo {number + 1}" : $"Display {number + 1}";
-        return $"{name} · {area?.OuterBounds.Width ?? 0}×{area?.OuterBounds.Height ?? 0}";
+        var fallback = language.StartsWith("it", StringComparison.OrdinalIgnoreCase) ? "Schermo" : "Display";
+        try
+        {
+            var monitor = MonitorFromWindow(window, 2);
+            var info = new MonitorInfoEx { Size = Marshal.SizeOf<MonitorInfoEx>() };
+            if (monitor == 0 || !GetMonitorInfo(monitor, ref info)) return fallback;
+            var width = info.Monitor.Right - info.Monitor.Left;
+            var height = info.Monitor.Bottom - info.Monitor.Top;
+            var (name, hertz) = Describe(info.Device);
+            return Core.Theming.DisplayText.Label(name.Length > 0 ? name : fallback, width, height, hertz);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or COMException)
+        {
+            AppLog.Write($"Schermo: {ex.Message}");
+            return fallback;
+        }
     }
 
-    private static List<string> MonitorNames()
+    /// <summary>The friendly name and refresh rate of the monitor shown by a GDI source (\\.\DISPLAY1).</summary>
+    private static (string Name, double Hertz) Describe(string gdiName)
     {
-        var names = new List<string>();
-        for (uint index = 0; index < 16; index++)
+        if (GetDisplayConfigBufferSizes(2, out var pathCount, out var modeCount) != 0) return ("", 0);
+        var paths = new PathInfo[pathCount];
+        var modes = new ModeInfo[modeCount];
+        if (QueryDisplayConfig(2, ref pathCount, paths, ref modeCount, modes, 0) != 0) return ("", 0);
+        for (var index = 0; index < pathCount; index++)
         {
-            var adapter = new DisplayDevice { Size = Marshal.SizeOf<DisplayDevice>() };
-            if (!EnumDisplayDevices(null, index, ref adapter, 0)) break;
-            if ((adapter.StateFlags & DisplayDeviceActive) == 0) continue;
-            for (uint monitorIndex = 0; monitorIndex < 16; monitorIndex++)
-            {
-                var monitor = new DisplayDevice { Size = Marshal.SizeOf<DisplayDevice>() };
-                if (!EnumDisplayDevices(adapter.DeviceName, monitorIndex, ref monitor, 0)) break;
-                if ((monitor.StateFlags & DisplayDeviceActive) != 0 && !string.IsNullOrWhiteSpace(monitor.DeviceString))
-                    names.Add(monitor.DeviceString);
-            }
+            var path = paths[index];
+            var source = new SourceName { Header = new InfoHeader { Type = 1, Size = Marshal.SizeOf<SourceName>(), Adapter = path.SourceAdapter, Id = path.SourceId } };
+            if (DisplayConfigGetDeviceInfo(ref source) != 0 || !string.Equals(source.GdiName, gdiName, StringComparison.OrdinalIgnoreCase)) continue;
+            var target = new TargetName { Header = new InfoHeader { Type = 2, Size = Marshal.SizeOf<TargetName>(), Adapter = path.TargetAdapter, Id = path.TargetId } };
+            var name = DisplayConfigGetDeviceInfo(ref target) == 0 ? target.FriendlyName ?? "" : "";
+            var hertz = path.RefreshDenominator > 0 ? (double)path.RefreshNumerator / path.RefreshDenominator : 0;
+            return (name.Trim(), hertz);
         }
-        return names;
+        return ("", 0);
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect { public int Left, Top, Right, Bottom; }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MonitorInfoEx
+    {
+        public int Size;
+        public Rect Monitor, Work;
+        public uint Flags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string Device;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Luid { public uint Low; public int High; }
+
+    // DISPLAYCONFIG_PATH_INFO, flattened: source info (20 bytes), target info (48), flags.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PathInfo
+    {
+        public Luid SourceAdapter;
+        public uint SourceId, SourceModeIndex, SourceFlags;
+        public Luid TargetAdapter;
+        public uint TargetId, TargetModeIndex;
+        public int OutputTechnology, Rotation, Scaling;
+        public uint RefreshNumerator, RefreshDenominator;
+        public int ScanLineOrdering, TargetAvailable;
+        public uint TargetFlags, Flags;
+    }
+
+    // DISPLAYCONFIG_MODE_INFO: only its size matters here.
+    [StructLayout(LayoutKind.Sequential, Size = 64)]
+    private struct ModeInfo { public uint InfoType, Id; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct InfoHeader { public int Type, Size; public Luid Adapter; public uint Id; }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct SourceName
+    {
+        public InfoHeader Header;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string GdiName;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct TargetName
+    {
+        public InfoHeader Header;
+        public uint Flags;
+        public int OutputTechnology;
+        public ushort ManufactureId, ProductCodeId;
+        public uint ConnectorInstance;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string FriendlyName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DevicePath;
+    }
+
+    [DllImport("user32.dll")] private static extern nint MonitorFromWindow(nint window, uint flags);
+    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", CharSet = CharSet.Unicode)]
+    private static extern bool GetMonitorInfo(nint monitor, ref MonitorInfoEx info);
+    [DllImport("user32.dll")] private static extern int GetDisplayConfigBufferSizes(uint flags, out int paths, out int modes);
+    [DllImport("user32.dll")]
+    private static extern int QueryDisplayConfig(uint flags, ref int pathCount, [Out] PathInfo[] paths, ref int modeCount, [Out] ModeInfo[] modes, nint topology);
+    [DllImport("user32.dll")] private static extern int DisplayConfigGetDeviceInfo(ref SourceName request);
+    [DllImport("user32.dll")] private static extern int DisplayConfigGetDeviceInfo(ref TargetName request);
 
     public static List<DisplayArea> All()
     {

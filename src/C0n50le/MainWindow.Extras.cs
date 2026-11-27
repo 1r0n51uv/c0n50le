@@ -92,6 +92,7 @@ public sealed partial class MainWindow
     {
         if (TourVisible || (!force && _prefs.TourDone) || IntroVisible) return;
         if (SystemPage.Visibility == Visibility.Visible) CloseSystem();
+        if (DetailsOpen) CloseDetails();
         CloseMenu(restoreFocus: false);
         _tourIndex = 0;
         TourLayer.Visibility = Visibility.Visible;

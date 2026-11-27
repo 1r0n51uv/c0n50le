@@ -39,7 +39,7 @@ public sealed partial class MainWindow
     {
         _feedTimer = DispatcherQueue.CreateTimer();
         _feedTimer.Interval = FeedRefresh;
-        _feedTimer.Tick += (_, _) => _ = RefreshFeedsAsync();
+        _feedTimer.Tick += (_, _) => _ = RefreshFeedsAsync(skeleton: false);
         _galleryTimer = DispatcherQueue.CreateTimer();
         _galleryTimer.Interval = GalleryInterval;
         _galleryTimer.Tick += (_, _) => ShowNextPicture();
@@ -53,8 +53,11 @@ public sealed partial class MainWindow
     private void ApplyWidgets(bool reload)
     {
         if (_feedTimer is null || _galleryTimer is null) return;
-        var show = _prefs.ShowWidgets;
+        var show = _prefs.ShowWidgets && (_prefs.ShowWeather || _prefs.ShowNews || _prefs.ShowGallery);
         WidgetColumn.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        WeatherWidget.Visibility = _prefs.ShowWeather ? Visibility.Visible : Visibility.Collapsed;
+        NewsWidget.Visibility = _prefs.ShowNews ? Visibility.Visible : Visibility.Collapsed;
+        GalleryWidget.Visibility = _prefs.ShowGallery ? Visibility.Visible : Visibility.Collapsed;
         if (!show)
         {
             _feedTimer.Stop();
@@ -62,17 +65,103 @@ public sealed partial class MainWindow
             _widgetRequest?.Cancel();
             return;
         }
-        if (reload || !_feedTimer.IsRunning) _ = RefreshFeedsAsync();
+        if (reload || !_feedTimer.IsRunning) _ = RefreshFeedsAsync(skeleton: reload);
         _feedTimer.Start();
-        if (reload || _galleryLoaded != GalleryFolder) _ = LoadGalleryAsync();
+        if (_prefs.ShowGallery && (reload || _galleryLoaded != GalleryFolder)) _ = LoadGalleryAsync();
         _galleryTimer.Start();
     }
 
-    private async Task RefreshFeedsAsync()
+    private async Task RefreshFeedsAsync(bool skeleton)
     {
         _widgetRequest?.Cancel();
         var request = _widgetRequest = new CancellationTokenSource();
-        await Task.WhenAll(RefreshWeatherAsync(request.Token), RefreshNewsAsync(request.Token));
+        // While a source loads the widget keeps its shape, as a softly pulsing skeleton, instead of an empty panel.
+        if (_prefs.ShowWeather && _prefs.WeatherCity.Length > 0 && (skeleton || WeatherWidget.Content is null))
+            WeatherWidget.Content = WeatherSkeleton();
+        if (_prefs.ShowNews && (skeleton || NewsWidget.Content is null)) NewsWidget.Content = NewsSkeleton();
+        var work = new List<Task>();
+        if (_prefs.ShowWeather) work.Add(RefreshWeatherAsync(request.Token));
+        if (_prefs.ShowNews) work.Add(RefreshNewsAsync(request.Token));
+        await Task.WhenAll(work);
+    }
+
+    // ───────── Skeletons ─────────
+
+    private static Border Bone(double width, double height, double radius = 8) => new()
+    {
+        Width = width, Height = height, CornerRadius = new CornerRadius(radius), HorizontalAlignment = HorizontalAlignment.Left,
+        Background = ThemeManager.Brush("GlyphCircleBrush")
+    };
+
+    private static FrameworkElement Pulse(FrameworkElement element)
+    {
+        element.Loaded += (_, _) => StartPulse(element);
+        element.Unloaded += (_, _) => StopPulse(element);
+        return element;
+    }
+
+    private static void StartPulse(UIElement element)
+    {
+        if (!Motion.Enabled(Motion.Reduce)) return;
+        var visual = ElementCompositionPreview.GetElementVisual(element);
+        var pulse = visual.Compositor.CreateScalarKeyFrameAnimation();
+        pulse.InsertKeyFrame(0, 1f);
+        pulse.InsertKeyFrame(0.5f, 0.45f);
+        pulse.InsertKeyFrame(1, 1f);
+        pulse.Duration = TimeSpan.FromMilliseconds(1400);
+        pulse.IterationBehavior = Microsoft.UI.Composition.AnimationIterationBehavior.Forever;
+        visual.StartAnimation("Opacity", pulse);
+    }
+
+    private static void StopPulse(UIElement element)
+    {
+        var visual = ElementCompositionPreview.GetElementVisual(element);
+        visual.StopAnimation("Opacity");
+        visual.Opacity = 1;
+    }
+
+    private void HideGallerySkeleton()
+    {
+        StopPulse(GallerySkeleton);
+        GallerySkeleton.Visibility = Visibility.Collapsed;
+    }
+
+    private static FrameworkElement WeatherSkeleton()
+    {
+        var grid = new Grid { ColumnSpacing = 20 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(new Border
+        {
+            Width = 56, Height = 56, CornerRadius = new CornerRadius(28), VerticalAlignment = VerticalAlignment.Center,
+            Background = ThemeManager.Brush("GlyphCircleBrush")
+        });
+        var lines = new StackPanel { Spacing = 10, VerticalAlignment = VerticalAlignment.Center };
+        lines.Children.Add(Bone(150, 22));
+        lines.Children.Add(Bone(110, 16));
+        lines.Children.Add(Bone(170, 14));
+        Grid.SetColumn(lines, 1);
+        grid.Children.Add(lines);
+        var now = Bone(84, 52, 12);
+        now.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(now, 2);
+        grid.Children.Add(now);
+        return Pulse(grid);
+    }
+
+    private static FrameworkElement NewsSkeleton()
+    {
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(Bone(140, 14, 7));
+        foreach (var width in new[] { 380.0, 330.0, 360.0 })
+        {
+            var item = new StackPanel { Spacing = 7 };
+            item.Children.Add(Bone(width, 18));
+            item.Children.Add(Bone(width * 0.6, 18));
+            panel.Children.Add(item);
+        }
+        return Pulse(panel);
     }
 
     // ───────── Weather ─────────
@@ -85,7 +174,6 @@ public sealed partial class MainWindow
             WeatherWidget.Content = WidgetMessage("WidgetWeather", Strings.Get("WeatherSetCity"));
             return;
         }
-        if (WeatherWidget.Content is null) WeatherWidget.Content = WidgetMessage("WidgetWeather", "…");
         try
         {
             var report = await new WeatherClient(WidgetHttp).GetAsync(city, _prefs.WeatherFahrenheit, Strings.Language, token);
@@ -161,7 +249,6 @@ public sealed partial class MainWindow
 
     private async Task RefreshNewsAsync(CancellationToken token)
     {
-        if (NewsWidget.Content is null) NewsWidget.Content = WidgetMessage("WidgetNews", "…");
         try
         {
             var feed = await News.GetAsync(WidgetHttp, News.Resolve(_prefs.NewsFeed, Strings.Language), 3, token);
@@ -196,9 +283,13 @@ public sealed partial class MainWindow
     {
         var folder = GalleryFolder;
         _galleryLoaded = folder;
+        GalleryMessage.Text = "";
+        GallerySkeleton.Visibility = Visibility.Visible;
+        StartPulse(GallerySkeleton);
         _gallery = await Task.Run(() => Gallery.Load(folder));
         if (_galleryLoaded != folder) return;
         GalleryMessage.Text = _gallery.Count == 0 ? Strings.Get("GalleryEmpty") : "";
+        if (_gallery.Count == 0) HideGallerySkeleton();
         if (_gallery.Count == 0)
         {
             Motion.Fade(GalleryA, 0, 300, _prefs.ReduceMotion);
@@ -210,7 +301,7 @@ public sealed partial class MainWindow
     /// <summary>Cross-fades to the next picture; a file that will not open is skipped at the next turn.</summary>
     private void ShowNextPicture()
     {
-        if (!_prefs.ShowWidgets || !AppWindow.IsVisible || HomePage.Visibility != Visibility.Visible || _gallery.Next() is not { } path) return;
+        if (!_prefs.ShowWidgets || !_prefs.ShowGallery || !AppWindow.IsVisible || HomePage.Visibility != Visibility.Visible || _gallery.Next() is not { } path) return;
         var width = (int)Math.Ceiling(Math.Max(460, GalleryWidget.ActualWidth) * Math.Max(1, Root.XamlRoot?.RasterizationScale ?? 1));
         BitmapImage picture;
         try { picture = new BitmapImage { DecodePixelWidth = width, UriSource = new Uri(path) }; }
@@ -220,6 +311,7 @@ public sealed partial class MainWindow
         _galleryFront = !_galleryFront;
         picture.ImageOpened += (_, _) =>
         {
+            HideGallerySkeleton();
             Motion.Fade(front, 1, 700, _prefs.ReduceMotion);
             Motion.Fade(back, 0, 700, _prefs.ReduceMotion);
         };

@@ -40,6 +40,7 @@ public sealed partial class MainWindow : Window
         _startMode = startMode;
         _paths = AppPaths.ForThisApp();
         AppLog.UseFile(_paths.LogFile);
+        CursorHider.Initialize(_paths.Data);
         try { _prefs = Preferences.Load(_paths.PreferencesFile); }
         catch (Exception ex)
         {
@@ -60,6 +61,11 @@ public sealed partial class MainWindow : Window
         AppWindow.Closing += OnClosing;
         Activated += OnActivated;
 
+        GlassSurface.LiquidFailed += error => DispatcherQueue.TryEnqueue(() =>
+        {
+            AppLog.Write($"Vetro liquido non disponibile: {error}");
+            ShowToast(Strings.Get("LiquidGlassUnavailable"));
+        });
         ThemeManager.Use(_prefs.Theme, (Core.Theming.GlassDepth)_prefs.Glass);
         Root.RequestedTheme = ThemeManager.ElementTheme;
         Sounds.Enabled = _prefs.Sounds;
@@ -121,7 +127,7 @@ public sealed partial class MainWindow : Window
         DispatcherQueue.TryEnqueue(() =>
         {
             if (_session is not null) RefreshHero();
-            if (!IsOverlayOpen && SystemPage.Visibility == Visibility.Collapsed && !IntroVisible) FocusSelection();
+            if (!IsOverlayOpen && !PageOpen && !IntroVisible) FocusSelection();
         });
     }
 
@@ -197,6 +203,7 @@ public sealed partial class MainWindow : Window
         Strings.Changed -= ApplyTexts;
         _pollTimer?.Stop();
         _sessionTimer?.Stop();
+        _backdropTimer?.Stop();
         _clockTimer.Stop();
         _updateTimer.Stop();
         _feedTimer?.Stop();
@@ -227,8 +234,6 @@ public sealed partial class MainWindow : Window
         Home.SystemLabel = Strings.Get("System");
         SystemTitle.Text = Strings.Get("System");
         IntroTagline.Text = Strings.Get("IntroTagline").ToUpperInvariant();
-        ToolTipService.SetToolTip(DesktopPill, Strings.Get("BackToDesktop"));
-        ToolTipService.SetToolTip(SystemPill, Strings.Get("System"));
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SystemPill, Strings.Get("System"));
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(DesktopPill, Strings.Get("BackToDesktop"));
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SystemBack, Strings.Get("HintBack"));

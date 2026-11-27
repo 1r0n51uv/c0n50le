@@ -1,6 +1,7 @@
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="using:C0n50le.Ui">
 
     <!-- The tvOS look, from Apple's tvOS UI kit (Figma, 1920×1080). ThemeManager recolours these brushes in place for
          Light/Dark and the Liquid Glass depth, so every control follows at once. Values here: Dark, glass Medium. -->
@@ -93,7 +94,8 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
                     <Grid>
-                        <Border Background="{StaticResource MaterialBrush}" CornerRadius="{TemplateBinding CornerRadius}"/>
+                        <!-- Acrylic, or a liquid glass of its own with the "Liquid" setting. -->
+                        <ui:GlassSurface CornerRadius="{TemplateBinding CornerRadius}"/>
                         <Border Background="{StaticResource SheenBrush}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
                         <!-- The content (a menu's options) may fill the panel to its rounded edge; the soft rim stays on top. -->
                         <ContentPresenter Content="{TemplateBinding Content}" Padding="{TemplateBinding Padding}"

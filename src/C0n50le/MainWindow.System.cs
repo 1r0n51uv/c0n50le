@@ -38,7 +38,7 @@ public sealed partial class MainWindow
 
     private void OpenSystem()
     {
-        if (SystemPage.Visibility == Visibility.Visible || IsOverlayOpen) return;
+        if (PageOpen || IsOverlayOpen) return;
         Sounds.Play(UiSound.Open);
         SystemPage.Visibility = Visibility.Visible;
         HomePage.Visibility = Visibility.Collapsed;
@@ -319,6 +319,9 @@ public sealed partial class MainWindow
     private void WidgetRows()
     {
         Toggle("ShowWidgets", "ShowWidgetsBody", _prefs.ShowWidgets, on => { _prefs.ShowWidgets = on; ApplyWidgets(reload: on); });
+        Toggle("ShowWeather", "ShowWeatherBody", _prefs.ShowWeather, on => { _prefs.ShowWeather = on; ApplyWidgets(reload: on); });
+        Toggle("ShowNews", "ShowNewsBody", _prefs.ShowNews, on => { _prefs.ShowNews = on; ApplyWidgets(reload: on); });
+        Toggle("ShowGallery", "ShowGalleryBody", _prefs.ShowGallery, on => { _prefs.ShowGallery = on; ApplyWidgets(reload: on); });
         ActionRow("WeatherCity", "WeatherCityBody", _prefs.WeatherCity.Length > 0 ? _prefs.WeatherCity : Strings.Get("NotSet"), async () =>
         {
             var fields = new StackPanel { Spacing = 14 };
@@ -462,8 +465,10 @@ public sealed partial class MainWindow
     /// A settings row like tvOS: the name on the left, the value on the right in secondary text. Its description shows
     /// under the list while it is focused, so the rows stay one line.
     /// </summary>
-    private Button Row(string titleKey, string bodyKey, string value, bool chevron)
+    private Button Row(string titleKey, string bodyKey, string value, bool chevron, StackPanel? into = null, TextBlock? footer = null)
     {
+        into ??= Rows;
+        footer ??= RowFooter;
         var grid = new Grid { ColumnSpacing = 20 };
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -486,10 +491,10 @@ public sealed partial class MainWindow
         AutomationProperties.SetHelpText(button, bodyKey.Length > 0 ? Strings.Get(bodyKey) : "");
         button.GotFocus += (_, _) =>
         {
-            RowFooter.Text = bodyKey.Length > 0 ? Strings.Get(bodyKey) : "";
+            footer.Text = bodyKey.Length > 0 ? Strings.Get(bodyKey) : "";
             button.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.4, AnimationDesired = !_prefs.ReduceMotion });
         };
-        Rows.Children.Add(button);
+        into.Children.Add(button);
         return button;
     }
 
