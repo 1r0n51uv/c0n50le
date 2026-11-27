@@ -45,7 +45,8 @@ public static class ThemeManager
         Solid("ScrimBrush", theme.Scrim);
         Solid("SeparatorBrush", theme.Separator);
         Solid("GlyphCircleBrush", theme.IsLight ? Argb.FromHex("#26FFFFFF") : Argb.FromHex("#1AFFFFFF"));
-        Solid("DimBrush", theme.Backdrop.WithAlpha(theme.IsLight ? (byte)235 : (byte)230));
+        // Settings and the detail page dim the artwork without hiding it, so their glass menus still have it to blur.
+        Solid("DimBrush", theme.Backdrop.WithAlpha(theme.IsLight ? (byte)205 : (byte)195));
 
         var material = (AcrylicBrush)Application.Current.Resources["MaterialBrush"];
         var tint = theme.Material.WithAlpha(255);
@@ -70,6 +71,7 @@ public static class ThemeManager
         var side = (LinearGradientBrush)Application.Current.Resources["ShelfSideBrush"];
         SetStops(side, backdrop.WithAlpha(theme.IsLight ? (byte)0xC8 : (byte)0xB3), backdrop.WithAlpha(0x4D), backdrop.WithAlpha(0));
         Ambient();
+        GlassSurface.Use(theme.IsLiquid, !theme.IsLight);
     }
 
     private static void Ambient()

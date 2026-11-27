@@ -103,6 +103,16 @@ public static class LaunchBoxParser
         .Where(char.IsLetterOrDigit)).ToUpperInvariant();
 
     /// <summary>
+    /// One result per title: a game out on several platforms is listed once, as its Windows release when there is one,
+    /// else as the first platform found. The platforms stay in the order of the search.
+    /// </summary>
+    public static List<CatalogMatch> Collapse(IEnumerable<CatalogMatch> found) => found
+        .GroupBy(match => Normalize(match.Title))
+        .Select(group => group.FirstOrDefault(match => string.Equals(match.Platform, "Windows", StringComparison.OrdinalIgnoreCase))
+            ?? group.First())
+        .ToList();
+
+    /// <summary>
     /// The match to apply by itself: the only result with exactly that title, preferring the Windows one when the
     /// title exists on several platforms. Null when it isn't clear: the user picks in "Search for another title".
     /// </summary>

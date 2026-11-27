@@ -42,6 +42,9 @@ public sealed class Preferences
 
     // Home widgets: weather, news and gallery, on the right of the top shelf.
     public bool ShowWidgets { get; set; } = true;
+    public bool ShowWeather { get; set; } = true;
+    public bool ShowNews { get; set; } = true;
+    public bool ShowGallery { get; set; } = true;
     public string WeatherCity { get; set; } = "";
     public bool WeatherFahrenheit { get; set; }
     /// <summary>RSS or Atom address; "" follows the interface language.</summary>
@@ -99,6 +102,11 @@ public sealed class Preferences
         Watched ??= [];
         Art ??= [];
         Played ??= [];
+        foreach (var art in Art.Values.Where(art => art is not null))
+        {
+            art.Backgrounds ??= [];
+            art.CardImage ??= "";
+        }
         Manual.RemoveAll(game => game is null || string.IsNullOrWhiteSpace(game.Path));
         foreach (var game in Manual)
         {
@@ -134,7 +142,8 @@ public sealed class Preferences
     public int PruneArt(string artFolder)
     {
         if (!Directory.Exists(artFolder)) return 0;
-        var used = Art.Values.SelectMany(art => new[] { art.Card, art.Background, art.Logo, art.Banner })
+        var used = Art.Values.SelectMany(art => new[] { art.Card, art.Background, art.Logo, art.Banner, art.CardImage }
+                .Concat(art.Backgrounds ?? []))
             .Where(path => path.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var removed = 0;
         foreach (var file in Directory.GetFiles(artFolder))

@@ -44,8 +44,7 @@ public sealed partial class MainWindow
         };
         if (running) entries.Add(new(Strings.Get("CloseGame"), "", Action: () => { CloseRunningGame(); return Task.CompletedTask; }));
         entries.Add(MenuEntry.Divider);
-        entries.Add(new(Strings.Get("EditGame"), "", Action: () => EditGameAsync(game)));
-        entries.Add(new(Strings.Get("SearchArtwork"), "", Action: () => SearchArtworkAsync(game)));
+        entries.Add(new(Strings.Get("GameDetails"), "\uE8A5", Action: () => { OpenDetails(game); return Task.CompletedTask; }));
         entries.Add(MenuEntry.Divider);
         entries.Add(new(Strings.Get("HideGame"), "", Action: () =>
         {
@@ -194,7 +193,8 @@ public sealed partial class MainWindow
         AlertBody.Text = body;
         AlertBody.Visibility = body.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         AlertContent.Content = content;
-        AlertPanel.Width = content is null ? 560 : 760;
+        AlertPanel.Width = _nextAlertWidth > 0 ? _nextAlertWidth : content is null ? 560 : 760;
+        _nextAlertWidth = 0;
         AlertButtons.Children.Clear();
         var completion = _alert = new TaskCompletionSource<int>();
         for (var index = 0; index < buttons.Length; index++)
@@ -357,7 +357,7 @@ public sealed partial class MainWindow
                 chosen = (match, entry, files);
                 previewBackground.Source = LoadImage(files.Background ?? files.Banner ?? files.Cover, 900);
                 previewLogo.Source = LoadImage(files.Logo, 600);
-                previewLabel.Text = files.Logo is null ? match.Label : match.Platform;
+                previewLabel.Text = files.Logo is null ? match.Title : "";
                 SetAlertButtonEnabled(0, true);
             }
             catch (OperationCanceledException) { }
@@ -377,17 +377,7 @@ public sealed partial class MainWindow
                 {
                     var item = new Button { Style = ThemeManager.Style("TvListItem"), MinHeight = 60 };
                     FocusZoom.Attach(item);
-                    var line = new Grid();
-                    line.ColumnDefinitions.Add(new ColumnDefinition());
-                    line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                    line.Children.Add(new TextBlock { Text = match.Title, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-                    var platform = new TextBlock
-                    {
-                        Text = match.Platform, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right,
-                        Margin = new Thickness(16, 0, 0, 0)
-                    };
-                    Grid.SetColumn(platform, 1);
-                    line.Children.Add(platform);
+                    var line = new TextBlock { Text = match.Title, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
                     item.Content = line;
                     item.Click += async (_, _) => await Pick(match);
                     results.Children.Add(item);

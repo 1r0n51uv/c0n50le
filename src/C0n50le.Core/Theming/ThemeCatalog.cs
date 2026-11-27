@@ -16,7 +16,9 @@ public enum GlassDepth
     Off = 0,
     Subtle = 1,
     Medium = 2,
-    Deep = 3
+    Deep = 3,
+    /// <summary>Real liquid glass (LiquidGlassWinUI): refraction, dispersion and glare over the live backdrop.</summary>
+    Liquid = 4
 }
 
 /// <summary>
@@ -51,6 +53,7 @@ public sealed record ThemeTokens
     public double TintOpacity { get; init; } = 1;
     public bool IsLight => Appearance == Appearance.Light;
     public bool IsGlass => Glass != GlassDepth.Off;
+    public bool IsLiquid => Glass == GlassDepth.Liquid;
 }
 
 /// <summary>The two appearances and the glass depths.</summary>
@@ -62,7 +65,7 @@ public static class ThemeCatalog
     public const GlassDepth DefaultGlass = GlassDepth.Medium;
 
     public static IReadOnlyList<string> Ids { get; } = [DarkId, LightId];
-    public static IReadOnlyList<GlassDepth> Depths { get; } = [GlassDepth.Off, GlassDepth.Subtle, GlassDepth.Medium, GlassDepth.Deep];
+    public static IReadOnlyList<GlassDepth> Depths { get; } = [GlassDepth.Off, GlassDepth.Subtle, GlassDepth.Medium, GlassDepth.Deep, GlassDepth.Liquid];
 
     public static string Normalize(string? id) => string.Equals(id, LightId, StringComparison.OrdinalIgnoreCase) ? LightId : DarkId;
 
@@ -77,6 +80,8 @@ public static class ThemeCatalog
         GlassDepth.Off => 0xF5,
         GlassDepth.Subtle => 0xA6,
         GlassDepth.Medium => 0x70,
+        // Liquid: the fallback acrylic is as dense as Medium, matching the tint inside the liquid shader.
+        GlassDepth.Liquid => 0x70,
         _ => 0x42
     };
 
@@ -85,6 +90,8 @@ public static class ThemeCatalog
         GlassDepth.Off => 0,
         GlassDepth.Subtle => 0.35,
         GlassDepth.Medium => 0.6,
+        // The liquid shader draws its own glare and rim: only a hint of sheen on top.
+        GlassDepth.Liquid => 0.25,
         _ => 1
     };
 
@@ -93,6 +100,7 @@ public static class ThemeCatalog
         GlassDepth.Off => 1,
         GlassDepth.Subtle => 0.70,
         GlassDepth.Medium => 0.45,
+        GlassDepth.Liquid => 0.45,
         _ => 0.23
     };
 

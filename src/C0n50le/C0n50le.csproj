@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
-    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
@@ -15,7 +15,7 @@
     <RootNamespace>C0n50le</RootNamespace>
     <AssemblyName>C0n50le</AssemblyName>
     <Product>c0n50le</Product>
-    <Version>0.2.1</Version>
+    <Version>0.3.0</Version>
     <ApplicationIcon>Assets\c0n50le.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <NoWarn>$(NoWarn);CA1416</NoWarn>
@@ -23,8 +23,10 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="H.NotifyIcon.WinUI" Version="2.3.1" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.7.250401001" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+    <!-- LiquidGlassWinUI hooks Windows App SDK internals and needs exactly 2.2.0. -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.2.0" />
+    <PackageReference Include="LiquidGlassWinUI" Version="1.0.3" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2270" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\C0n50le.Core\C0n50le.Core.csproj" />

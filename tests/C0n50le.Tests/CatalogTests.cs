@@ -99,3 +99,63 @@ public sealed class CatalogTests
     public void Normalize_ignores_accents_case_and_punctuation() =>
         Assert.Equal(LaunchBoxParser.Normalize("Pokémon: Pokopia!"), LaunchBoxParser.Normalize("pokemon pokopia"));
 }
+
+public sealed class ArtSourceTests
+{
+    private static Core.Catalog.CatalogMatch Match(string title, string platform, int id) =>
+        new(title, new Uri($"https://gamesdb.launchbox-app.com/games/details/{id}-x"), platform);
+
+    [Fact]
+    public void A_title_on_several_platforms_is_listed_once_preferring_windows()
+    {
+        var found = new[]
+        {
+            Match("Control Resonant", "Sony Playstation 5", 1), Match("Control: Resonant", "Windows", 2),
+            Match("Control Resonant", "Microsoft Xbox Series X/S", 3), Match("Control", "Windows", 4)
+        };
+        var collapsed = Core.Catalog.LaunchBoxParser.Collapse(found);
+        Assert.Equal(2, collapsed.Count);
+        Assert.Equal("Windows", collapsed[0].Platform);
+        Assert.Equal("Control: Resonant", collapsed[0].Title);
+        Assert.Equal("Control", collapsed[1].Title);
+    }
+
+    [Fact]
+    public void Gallery_pictures_keep_their_type_and_size()
+    {
+        const string html = """
+            <a href="https://images.launchbox-app.com/a.jpg" data-title="Game - Fanart - Background Image" data-footer="1920 x 1080">x</a>
+            <a href="https://images.launchbox-app.com/b.png" data-title="Game - Clear Logo Image (World)" data-footer="800 x 300">x</a>
+            <a href="https://images.launchbox-app.com/c.jpg" data-title="Game - Steam Banner Image" data-footer="460 x 215">x</a>
+            <a href="https://evil.example/d.jpg" data-title="Game - Fanart - Background Image" data-footer="1920 x 1080">x</a>
+            """;
+        var all = Core.Catalog.ArtSources.ParseLaunchBoxGallery(html);
+        Assert.Equal(["Fanart - Background", "Clear Logo", "Steam Banner"], all.Select(candidate => candidate.Label));
+        Assert.Equal(["Steam Banner", "Fanart - Background"],
+            Core.Catalog.ArtSources.For(Core.Catalog.ArtUse.Card, all).Select(candidate => candidate.Label));
+        Assert.Equal(["Fanart - Background"],
+            Core.Catalog.ArtSources.For(Core.Catalog.ArtUse.Background, all).Select(candidate => candidate.Label));
+    }
+
+    [Fact]
+    public void Steam_art_lists_library_pictures_and_screenshots()
+    {
+        const string json = """{"620":{"success":true,"data":{"screenshots":[{"id":0,"path_full":"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/620/ss_1.jpg"},{"path_full":"https://evil.example/x.jpg"}]}}}""";
+        var art = Core.Catalog.ArtSources.ParseSteam(620, json);
+        Assert.Contains(art, candidate => candidate.Label == "Library Hero");
+        Assert.Single(art, candidate => candidate.Label == "Screenshot");
+        var backgrounds = Core.Catalog.ArtSources.For(Core.Catalog.ArtUse.Background, art);
+        Assert.Equal("Library Hero", backgrounds[0].Label);
+        Assert.DoesNotContain(backgrounds, candidate => candidate.Label is "Header" or "Library Capsule");
+        Assert.False(Core.Catalog.ArtSources.IsAllowed(new Uri("http://shared.akamai.steamstatic.com/x.jpg")));
+    }
+
+    [Fact]
+    public void Chosen_backgrounds_win_over_the_catalog_one()
+    {
+        var art = new Core.Library.Artwork { Background = "bg", HasCatalogMedia = true, Backgrounds = ["a", "gone", "b"] };
+        Assert.Equal(["a", "b"], art.BackgroundsToShow(path => path != "gone"));
+        art.Backgrounds = [];
+        Assert.Equal(["bg"], art.BackgroundsToShow(_ => true));
+    }
+}
