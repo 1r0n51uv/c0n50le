@@ -25,10 +25,10 @@
         <GradientStop Color="#08FFFFFF" Offset="1"/>
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="RimBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#80FFFFFF" Offset="0"/>
-        <GradientStop Color="#14FFFFFF" Offset="0.35"/>
-        <GradientStop Color="#0AFFFFFF" Offset="0.65"/>
-        <GradientStop Color="#4DFFFFFF" Offset="1"/>
+        <GradientStop Color="#3DFFFFFF" Offset="0"/>
+        <GradientStop Color="#0AFFFFFF" Offset="0.35"/>
+        <GradientStop Color="#05FFFFFF" Offset="0.65"/>
+        <GradientStop Color="#24FFFFFF" Offset="1"/>
     </LinearGradientBrush>
     <!-- The specular light on a focused card. -->
     <LinearGradientBrush x:Key="SpecularBrush" StartPoint="0,0" EndPoint="1,1">
@@ -92,26 +92,24 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
                     <Grid>
-                        <Border Background="{StaticResource MaterialBrush}" BorderBrush="{StaticResource MaterialStrokeBrush}"
-                                BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}"/>
+                        <Border Background="{StaticResource MaterialBrush}" CornerRadius="{TemplateBinding CornerRadius}"/>
                         <Border Background="{StaticResource SheenBrush}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
-                        <Border BorderBrush="{StaticResource RimBrush}" BorderThickness="1.5" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+                        <!-- The content (a menu's options) may fill the panel to its rounded edge; the soft rim stays on top. -->
                         <ContentPresenter Content="{TemplateBinding Content}" Padding="{TemplateBinding Padding}"
                                           HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        <Border BorderBrush="{StaticResource RimBrush}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
-    <!-- The one focus behaviour of tvOS, for every control: the focused one becomes a white platter with black text and
-         grows a little. With the mouse, hovering moves the focus, so it looks the same. -->
+    <!-- The one focus behaviour, for every control: the background turns into the white platter and only the text and icons
+         grow a little; the shape never does, so it never spills out of its panel. With the mouse, hovering moves the focus,
+         so it looks the same. -->
     <ControlTemplate x:Key="PlatterTemplate" TargetType="Button">
-        <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
-            <Grid.RenderTransform>
-                <ScaleTransform x:Name="Scale"/>
-            </Grid.RenderTransform>
+        <Grid x:Name="Root">
             <VisualStateManager.VisualStateGroups>
                 <VisualStateGroup x:Name="CommonStates">
                     <VisualState x:Name="Normal"/>
@@ -170,7 +168,11 @@
                                   Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
                                   HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                                   VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                                  AutomationProperties.AccessibilityView="Raw"/>
+                                  RenderTransformOrigin="0.5,0.5" AutomationProperties.AccessibilityView="Raw">
+                    <ContentPresenter.RenderTransform>
+                        <ScaleTransform x:Name="Scale"/>
+                    </ContentPresenter.RenderTransform>
+                </ContentPresenter>
             </Grid>
         </Grid>
     </ControlTemplate>
@@ -190,8 +192,6 @@
     <!-- Product screen button: 84 high, corner 12, Bold 31, on the material. -->
     <Style x:Key="TvButton" TargetType="Button" BasedOn="{StaticResource PlatterBase}">
         <Setter Property="Background" Value="{StaticResource MaterialBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource MaterialStrokeBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Height" Value="84"/>
         <Setter Property="MinWidth" Value="260"/>
         <Setter Property="Padding" Value="40,0"/>
@@ -214,8 +214,6 @@
     <!-- Round icon button on the material, 64. -->
     <Style x:Key="TvIconButton" TargetType="Button" BasedOn="{StaticResource PlatterBase}">
         <Setter Property="Background" Value="{StaticResource MaterialBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource MaterialStrokeBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Width" Value="64"/>
         <Setter Property="Height" Value="64"/>
         <Setter Property="Padding" Value="0"/>
@@ -223,7 +221,16 @@
         <Setter Property="FontSize" Value="26"/>
     </Style>
 
-    <!-- List rows keep their background inside the panel while the content grows. -->
+    <!-- A button inside the app bar: round, 56, no fill of its own until focused, so the bar reads as one piece. -->
+    <Style x:Key="TvAppBarButton" TargetType="Button" BasedOn="{StaticResource PlatterBase}">
+        <Setter Property="Width" Value="56"/>
+        <Setter Property="Height" Value="56"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="CornerRadius" Value="28"/>
+        <Setter Property="FontSize" Value="24"/>
+    </Style>
+
+    <!-- List rows keep their shape: the background turns into the platter and FocusZoom grows only the text and icons. -->
     <ControlTemplate x:Key="ListRowTemplate" TargetType="Button">
         <Grid x:Name="Row">
             <VisualStateManager.VisualStateGroups>
@@ -243,16 +250,12 @@
                         <VisualState.Setters>
                             <Setter Target="Highlight.Opacity" Value="1"/>
                             <Setter Target="RowContent.Foreground" Value="{StaticResource FocusTextBrush}"/>
-                            <Setter Target="ContentScale.ScaleX" Value="{StaticResource FocusScale}"/>
-                            <Setter Target="ContentScale.ScaleY" Value="{StaticResource FocusScale}"/>
                         </VisualState.Setters>
                     </VisualState>
                     <VisualState x:Name="PointerFocused">
                         <VisualState.Setters>
                             <Setter Target="Highlight.Opacity" Value="1"/>
                             <Setter Target="RowContent.Foreground" Value="{StaticResource FocusTextBrush}"/>
-                            <Setter Target="ContentScale.ScaleX" Value="{StaticResource FocusScale}"/>
-                            <Setter Target="ContentScale.ScaleY" Value="{StaticResource FocusScale}"/>
                         </VisualState.Setters>
                     </VisualState>
                 </VisualStateGroup>
@@ -263,14 +266,10 @@
             <Grid Margin="{TemplateBinding Padding}">
                 <ContentPresenter x:Name="RowContent" Content="{TemplateBinding Content}"
                                   ContentTemplate="{TemplateBinding ContentTemplate}"
-                                  Foreground="{TemplateBinding Foreground}" RenderTransformOrigin="0.5,0.5"
+                                  Foreground="{TemplateBinding Foreground}"
                                   HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                                   VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                                  AutomationProperties.AccessibilityView="Raw">
-                    <ContentPresenter.RenderTransform>
-                        <ScaleTransform x:Name="ContentScale"/>
-                    </ContentPresenter.RenderTransform>
-                </ContentPresenter>
+                                  AutomationProperties.AccessibilityView="Raw"/>
             </Grid>
         </Grid>
     </ControlTemplate>
@@ -287,11 +286,12 @@
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
     </Style>
 
-    <!-- Context menu item: a rectangular highlight between the separators. -->
+    <!-- Context menu option: edge to edge in the panel. The ones in the middle are rectangles; the first takes the panel's
+         top corners and the last its bottom ones (set from code), so the platter fills the rounded ends exactly. -->
     <Style x:Key="TvMenuItem" TargetType="Button" BasedOn="{StaticResource TvListItem}">
         <Setter Property="MinHeight" Value="70"/>
         <Setter Property="Height" Value="70"/>
-        <Setter Property="Padding" Value="12,0,24,0"/>
+        <Setter Property="Padding" Value="22,0,30,0"/>
         <Setter Property="CornerRadius" Value="0"/>
     </Style>
 
@@ -333,7 +333,6 @@
                               AutomationProperties.AccessibilityView="Raw"/>
             <Border x:Name="Specular" Opacity="0" Background="{StaticResource SpecularBrush}" CornerRadius="{TemplateBinding CornerRadius}"
                     IsHitTestVisible="False"/>
-            <Border BorderBrush="#29FFFFFF" BorderThickness="0.5" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
         </Grid>
     </ControlTemplate>
 

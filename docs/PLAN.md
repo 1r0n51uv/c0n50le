@@ -30,14 +30,15 @@ Misure prese dal file Figma (1920×1080):
 | Elemento | Kit tvOS | In c0n50le |
 |---|---|---|
 | Materiale | `#1E1E1E` al 50% (chiaro: `#FEFDFF` al 50%) + sfocatura, bordo bianco 10–16% | `AcrylicBrush` con la stessa tinta; la profondità del vetro ne cambia trasparenza, riflesso in alto e bordo luminoso |
-| Focus | piattaforma bianca al 90%, testo nero, ingrandimento | uguale per pulsanti, righe e voci di menu (+5%); le card crescono del 22% (250×150 → 306×184) con ombra e luce speculare |
+| Focus | piattaforma bianca al 90%, testo nero, ingrandimento | pulsanti, righe e voci di menu cambiano solo sfondo; crescono (+5%) testo e icone, ciascuno dal proprio bordo esterno, così niente esce dalla riga; le card crescono del 22% (250×150 → 306×184) con ombra e luce speculare |
 | Card | 250×150, angoli 30 | artwork del gioco con il suo logo trasparente sopra, come un'icona di Apple TV; altrimenti banner, copertina o nome |
 | Dock | piattaforma 1820×230, angoli 60 | in basso, con tutti i giochi (i più recenti prima), poi Aggiungi e Sistema; scorre di lato |
 | Top shelf / pagina prodotto | artwork, logo, metadati 29, descrizione 29 | artwork a schermo intero del gioco a fuoco, logo (o titolo 76), dettagli e descrizione; su Aggiungi e Sistema mostra cosa fanno |
-| Menu contestuale | 440 di larghezza, angoli 30, voci 70, divisori | opzioni della card accanto alla card; scelte delle impostazioni accanto al valore, con la spunta |
+| Menu contestuale | 440 di larghezza, angoli 30, voci 70, divisori | pannello arrotondato senza bordi visibili; le voci lo riempiono da bordo a bordo: la prima prende gli angoli superiori, l'ultima quelli inferiori, quelle in mezzo sono rettangoli; tra i gruppi una fascia tenue |
 | Avviso | 504, angoli 48, pulsanti 66 impilati, sfondo scurito | conferme, aggiunta e modifica di un gioco, ricerca della copertina con anteprima, aggiornamenti, tour |
 | Impostazioni | sidebar con voci 72 (angoli 16), icona in un cerchio da 44 | sidebar a sinistra, righe nome/valore a destra, valori come testo ("Attivo"), descrizione della riga a fuoco in basso; niente switch |
-| Barra in alto | — | modalità di input, ora, Sistema e Desktop come pulsanti tondi di materiale |
+| Barra in alto | — | un'unica app bar di vetro: modalità di input, ora, Sistema e Desktop |
+| Widget | — | a destra sotto la barra: meteo (Open-Meteo, città scelta), notizie (feed RSS/Atom), galleria (cartella di foto); in Sistema → Widget |
 | Testo | SF Pro Medium 23–31, Bold 31–76, secondario al 50–60% | Inter (SF Pro non è distribuibile su Windows) agli stessi corpi e pesi |
 
 Principi Apple seguiti: un solo elemento a fuoco e sempre evidente; il contenuto (l'artwork) prima dei controlli; materiali
@@ -48,10 +49,10 @@ superflue (i suggerimenti dei tasti compaiono solo usando il controller); testi 
 
 ```
 src/C0n50le.Core/   logica senza WinUI: libreria e scoperta, catalogo LaunchBox (copertina, sfondo, logo, banner),
-                    preferenze, input, temi (Chiaro/Scuro, profondità del vetro), testi, versioni, tour, suoni
+                    preferenze, input, temi (Chiaro/Scuro, profondità del vetro), widget (meteo, notizie, galleria), testi, versioni, tour, suoni
 src/C0n50le/        WinUI 3: MainWindow (home, Sistema, menu, avvisi, tour, intro), Themes/Theme.xaml (componenti tvOS),
                     Ui/ThemeManager (ricolora i pennelli), Services (controller, sessione di gioco, tray, aggiornamenti…)
-tests/              85 test xUnit sul Core
+tests/              114 test xUnit sul Core
 tools/TestGames/    giochi finti per le prove
 build/              publish, Inno Setup; .github/workflows: CI e release
 ```

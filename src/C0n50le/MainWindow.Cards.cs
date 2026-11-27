@@ -95,7 +95,8 @@ public sealed partial class MainWindow
         {
             if (entry.Label is null)
             {
-                MenuItems.Children.Add(new Border { Height = 10, Margin = new Thickness(-10, 4, -10, 4), Background = ThemeManager.Brush("SeparatorBrush"), Opacity = 0.35 });
+                // A quiet band between groups, edge to edge like the options, never a drawn line.
+                MenuItems.Children.Add(new Border { Height = 8, Background = ThemeManager.Brush("SeparatorBrush"), Opacity = 0.45, IsHitTestVisible = false });
                 continue;
             }
             var row = new Grid();
@@ -108,6 +109,7 @@ public sealed partial class MainWindow
             Grid.SetColumn(label, 1);
             row.Children.Add(label);
             var button = new Button { Style = ThemeManager.Style("TvMenuItem"), Content = row };
+            FocusZoom.Attach(button);
             AutomationProperties.SetName(button, entry.Label);
             if (entry.Checked) AutomationProperties.SetItemStatus(button, Strings.Get("Selected"));
             button.Click += async (_, _) =>
@@ -120,6 +122,10 @@ public sealed partial class MainWindow
             first ??= button;
             if (entry.Checked) chosen = button;
         }
+        // The panel is a rounded rectangle and the options fill it: the first takes its top corners, the last its bottom ones.
+        var options = MenuItems.Children.OfType<Button>().ToList();
+        for (var index = 0; index < options.Count; index++)
+            options[index].CornerRadius = FocusZoom.MenuCorners(index == 0, index == options.Count - 1, MenuPanel.CornerRadius.TopLeft);
         MenuLayer.Visibility = Visibility.Visible;
         PlaceMenu(anchor, isSettingsRow);
         Sounds.Play(UiSound.Open);
@@ -376,11 +382,16 @@ public sealed partial class MainWindow
                 foreach (var match in found)
                 {
                     var item = new Button { Style = ThemeManager.Style("TvListItem"), MinHeight = 60 };
+                    FocusZoom.Attach(item);
                     var line = new Grid();
                     line.ColumnDefinitions.Add(new ColumnDefinition());
                     line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                     line.Children.Add(new TextBlock { Text = match.Title, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-                    var platform = new TextBlock { Text = match.Platform, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0) };
+                    var platform = new TextBlock
+                    {
+                        Text = match.Platform, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right,
+                        Margin = new Thickness(16, 0, 0, 0)
+                    };
                     Grid.SetColumn(platform, 1);
                     line.Children.Add(platform);
                     item.Content = line;

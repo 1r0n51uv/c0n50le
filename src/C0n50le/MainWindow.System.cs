@@ -5,6 +5,7 @@ using C0n50le.Core.Input;
 using C0n50le.Core.Library;
 using C0n50le.Core.Localization;
 using C0n50le.Core.Theming;
+using C0n50le.Core.Widgets;
 using C0n50le.Services;
 using C0n50le.Ui;
 using Microsoft.UI.Dispatching;
@@ -25,6 +26,7 @@ public sealed partial class MainWindow
         ("CategoryScreen", ""),
         ("CategoryControls", ""),
         ("CategoryLook", ""),
+        ("CategoryWidgets", "\uECA5"),
         ("CategoryStart", ""),
         ("CategoryUpdates", ""),
         ("CategoryAbout", ""),
@@ -116,6 +118,7 @@ public sealed partial class MainWindow
             Grid.SetColumn(label, 1);
             row.Children.Add(label);
             var button = new Button { Style = ThemeManager.Style("TvListItem"), Content = row, Padding = new Thickness(14, 0, 20, 0), Opacity = selected ? 1 : 0.62 };
+            FocusZoom.Attach(button);
             AutomationProperties.SetName(button, Strings.Get(key));
             if (selected) AutomationProperties.SetItemStatus(button, Strings.Get("Selected"));
             // Moving over a category shows its settings, like tvOS.
@@ -155,6 +158,7 @@ public sealed partial class MainWindow
             case "CategoryScreen": ScreenRows(); break;
             case "CategoryControls": ControlRows(); break;
             case "CategoryLook": LookRows(); break;
+            case "CategoryWidgets": WidgetRows(); break;
             case "CategoryStart": StartRows(); break;
             case "CategoryUpdates": UpdateRows(); break;
             case "CategoryAbout": AboutRows(); break;
@@ -312,6 +316,85 @@ public sealed partial class MainWindow
         });
     }
 
+    private void WidgetRows()
+    {
+        Toggle("ShowWidgets", "ShowWidgetsBody", _prefs.ShowWidgets, on => { _prefs.ShowWidgets = on; ApplyWidgets(reload: on); });
+        ActionRow("WeatherCity", "WeatherCityBody", _prefs.WeatherCity.Length > 0 ? _prefs.WeatherCity : Strings.Get("NotSet"), async () =>
+        {
+            var fields = new StackPanel { Spacing = 14 };
+            var city = Field(fields, Strings.Get("FieldCity"), _prefs.WeatherCity);
+            if (await AlertAsync(Strings.Get("WeatherCity"), Strings.Get("WeatherCityBody"), fields, Strings.Get("Save"), Strings.Get("Cancel")) != 0) return;
+            _prefs.WeatherCity = city.Text.Trim();
+            Save();
+            Rerender();
+            ApplyWidgets(reload: true);
+        });
+        var units = new[] { Strings.Get("Celsius"), Strings.Get("Fahrenheit") };
+        Choice("WeatherUnits", "WeatherUnitsBody", units[_prefs.WeatherFahrenheit ? 1 : 0], units, _prefs.WeatherFahrenheit ? 1 : 0, index =>
+        {
+            _prefs.WeatherFahrenheit = index == 1;
+            ApplyWidgets(reload: true);
+        });
+        var preset = News.Presets.ToList().FindIndex(feed => feed.Url == _prefs.NewsFeed);
+        var feedLabel = _prefs.NewsFeed.Length == 0 ? Strings.Get("NewsAutomatic")
+            : preset >= 0 ? News.Presets[preset].Name
+            : Uri.TryCreate(_prefs.NewsFeed, UriKind.Absolute, out var custom) ? custom.Host : _prefs.NewsFeed;
+        ActionRow("NewsFeed", "NewsFeedBody", feedLabel, () =>
+        {
+            void Use(string url)
+            {
+                _prefs.NewsFeed = url;
+                Save();
+                Rerender();
+                ApplyWidgets(reload: true);
+            }
+            var entries = new List<MenuEntry>
+            {
+                new(Strings.Get("NewsAutomatic"), Checked: _prefs.NewsFeed.Length == 0, Action: () => { Use(""); return Task.CompletedTask; })
+            };
+            entries.AddRange(News.Presets.Select(feed => new MenuEntry(feed.Name, Checked: feed.Url == _prefs.NewsFeed,
+                Action: () => { Use(feed.Url); return Task.CompletedTask; })));
+            entries.Add(MenuEntry.Divider);
+            entries.Add(new(Strings.Get("NewsCustom"), Checked: _prefs.NewsFeed.Length > 0 && preset < 0, Action: async () =>
+            {
+                var fields = new StackPanel { Spacing = 14 };
+                var url = Field(fields, Strings.Get("FieldFeedUrl"), preset < 0 ? _prefs.NewsFeed : "");
+                if (await AlertAsync(Strings.Get("NewsFeed"), Strings.Get("NewsFeedBody"), fields, Strings.Get("Save"), Strings.Get("Cancel")) != 0) return;
+                var address = url.Text.Trim();
+                if (!News.IsValidUrl(address)) { ShowToast(Strings.Get("InvalidFeed")); return; }
+                Use(address);
+            }));
+            OpenMenu(entries, FocusedButton(), FocusedButton());
+            return Task.CompletedTask;
+        });
+        var gallery = _prefs.GalleryFolder.Length > 0 ? Path.GetFileName(_prefs.GalleryFolder.TrimEnd('\\')) : Strings.Get("GalleryDefault");
+        ActionRow("GalleryFolder", "GalleryFolderBody", gallery, () =>
+        {
+            var entries = new List<MenuEntry>
+            {
+                new(Strings.Get("ChooseFolder"), "\uE8DA", Action: async () =>
+                {
+                    if (await PickFolderAsync() is not { } path) return;
+                    _prefs.GalleryFolder = path;
+                    Save();
+                    Rerender();
+                    ApplyWidgets(reload: true);
+                })
+            };
+            if (_prefs.GalleryFolder.Length > 0)
+                entries.Add(new(Strings.Get("GalleryDefault"), "\uE8B9", Action: () =>
+                {
+                    _prefs.GalleryFolder = "";
+                    Save();
+                    Rerender();
+                    ApplyWidgets(reload: true);
+                    return Task.CompletedTask;
+                }));
+            OpenMenu(entries, FocusedButton(), FocusedButton());
+            return Task.CompletedTask;
+        });
+    }
+
     private void StartRows()
     {
         Toggle("StartWithWindows", "StartWithWindowsBody", StartupRegistration.IsEnabled, on =>
@@ -385,7 +468,10 @@ public sealed partial class MainWindow
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.Children.Add(new TextBlock { Text = Strings.Get(titleKey), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-        var right = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14, VerticalAlignment = VerticalAlignment.Center };
+        var right = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 14, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right
+        };
         var valueText = new TextBlock
         {
             Text = value, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 460, TextTrimming = TextTrimming.CharacterEllipsis
@@ -395,6 +481,7 @@ public sealed partial class MainWindow
         Grid.SetColumn(right, 1);
         grid.Children.Add(right);
         var button = new Button { Style = ThemeManager.Style("TvListItem"), Content = grid, Padding = new Thickness(28, 0, 28, 0), Tag = valueText };
+        FocusZoom.Attach(button);
         AutomationProperties.SetName(button, Strings.Get(titleKey));
         AutomationProperties.SetHelpText(button, bodyKey.Length > 0 ? Strings.Get(bodyKey) : "");
         button.GotFocus += (_, _) =>
