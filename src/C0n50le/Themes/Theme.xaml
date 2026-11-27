@@ -17,7 +17,7 @@
     <SolidColorBrush x:Key="GlyphCircleBrush" Color="#1AFFFFFF"/>
     <SolidColorBrush x:Key="DimBrush" Color="#E60F0F10"/>
     <!-- The material: acrylic that blurs the artwork behind it. Opaque when Liquid Glass is off. -->
-    <AcrylicBrush x:Key="MaterialBrush" BackgroundSource="Backdrop" TintColor="#1E1E1E" TintOpacity="0.55" TintLuminosityOpacity="0.7" FallbackColor="#E61E1E1E"/>
+    <AcrylicBrush x:Key="MaterialBrush" TintColor="#1E1E1E" TintOpacity="0.55" TintLuminosityOpacity="0.7" FallbackColor="#E61E1E1E"/>
     <!-- Liquid Glass: a soft light across the top and a lit rim, stronger with each depth. -->
     <LinearGradientBrush x:Key="SheenBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#2EFFFFFF" Offset="0"/>
