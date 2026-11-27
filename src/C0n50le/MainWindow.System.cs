@@ -58,7 +58,7 @@ public sealed partial class MainWindow
         TopBar.Visibility = Visibility.Visible;
         HomeHints.Visibility = Home.IsControllerMode ? Visibility.Visible : Visibility.Collapsed;
         Motion.Fade(PageDim, 0, 220, _prefs.ReduceMotion);
-        _padName = _padButtons = null;
+        _padName = _padButtons = _wakeValue = null;
         DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, FocusSelection);
     }
 
@@ -149,7 +149,7 @@ public sealed partial class MainWindow
     private void RenderRows(int? focusRow = null)
     {
         Rows.Children.Clear();
-        _padName = _padButtons = null;
+        _padName = _padButtons = _wakeValue = null;
         CategoryTitle.Text = Strings.Get(SystemCategories[_category].Key);
         RowFooter.Text = "";
         switch (SystemCategories[_category].Key)
@@ -268,8 +268,91 @@ public sealed partial class MainWindow
         var padIndex = ShortcutChoices.Controller.ToList().IndexOf(_prefs.ControllerShortcut);
         Choice("ControllerShortcut", "ControllerShortcutBody", pads[Math.Max(0, padIndex)], pads, padIndex,
             index => _prefs.ControllerShortcut = ShortcutChoices.Controller[index]);
+        var wake = Row("ControllerWake", "ControllerWakeBody", WakeValueText(), chevron: true);
+        _wakeValue = (TextBlock)wake.Tag;
+        wake.Click += async (_, _) =>
+        {
+            Sounds.Play(UiSound.Confirm);
+            await RunAsync(EnableControllerWakeAsync);
+        };
+        if (!_wakeChecked && !_wakeBusy) _ = RefreshControllerWakeAsync();
         _padName = Info("ControllerDetected", _lastPad.Connected ? _lastPad.Name : Strings.Get("NoController"));
         _padButtons = Info("ControllerTest", Strings.Get("ControllerTestIdle"));
+    }
+
+    // ───────── Waking the PC with the controller (from consolemode) ─────────
+
+    private List<WakeDevice>? _wakeDevices;
+    private bool _wakeChecked, _wakeBusy;
+    private TextBlock? _wakeValue;
+
+    /// <summary>The row's value: on, the verb to turn it on, or why it can't be.</summary>
+    private string WakeValueText()
+    {
+        if (_wakeBusy || !_wakeChecked) return Strings.Get("ControllerWakeChecking");
+        if (_wakeDevices is not { Count: > 0 }) return Strings.Get("ControllerWakeUnavailable");
+        return Strings.Get(_wakeDevices.All(device => device.Armed) ? "On" : "ControllerWakeButton");
+    }
+
+    private string WakeStatusText()
+    {
+        if (_wakeDevices is null) return Strings.Get("ControllerWakeUnknown");
+        if (_wakeDevices.Count == 0) return Strings.Get("ControllerWakeNone");
+        var off = _wakeDevices.Where(device => !device.Armed).ToList();
+        return off.Count == 0
+            ? Strings.Format("ControllerWakeReady", WakeNames(_wakeDevices))
+            : Strings.Format("ControllerWakeOff", WakeNames(off));
+    }
+
+    private static string WakeNames(IEnumerable<WakeDevice> devices) =>
+        string.Join(", ", devices.Select(device => device.Name).Distinct(StringComparer.CurrentCultureIgnoreCase).Take(3));
+
+    private void ShowWakeValue()
+    {
+        if (_wakeValue is not null) _wakeValue.Text = WakeValueText();
+    }
+
+    private async Task RefreshControllerWakeAsync()
+    {
+        _wakeBusy = true;
+        ShowWakeValue();
+        _wakeDevices = await Task.Run(ControllerWakeService.Read);
+        _wakeChecked = true;
+        _wakeBusy = false;
+        ShowWakeValue();
+    }
+
+    /// <summary>Reads the devices again (an adapter may have been plugged in since) and turns on the ones still off.</summary>
+    private async Task EnableControllerWakeAsync()
+    {
+        if (_wakeBusy) return;
+        await RefreshControllerWakeAsync();
+        var off = _wakeDevices?.Where(device => !device.Armed).ToList();
+        if (off is not { Count: > 0 })
+        {
+            ShowToast(WakeStatusText());
+            return;
+        }
+
+        _wakeBusy = true;
+        ShowWakeValue();
+        var result = await Task.Run(() => ControllerWakeService.Enable(off));
+        _wakeBusy = false;
+        await RefreshControllerWakeAsync();
+
+        // PowerShell saying it's done isn't proof: read the devices again and check they really can wake the PC.
+        if (result == ControllerWakeService.EnableResult.Done && ControllerWake.StillOff(off, _wakeDevices) is { Count: > 0 } stillOff)
+        {
+            AppLog.Write($"Riattivazione col controller: ancora spento dopo l'attivazione: {WakeNames(stillOff)}");
+            result = _wakeDevices is null ? ControllerWakeService.EnableResult.Failed : ControllerWakeService.EnableResult.NotFound;
+        }
+        ShowToast(Strings.Get(result switch
+        {
+            ControllerWakeService.EnableResult.Done => "ControllerWakeEnabled",
+            ControllerWakeService.EnableResult.Canceled => "ControllerWakeCanceled",
+            ControllerWakeService.EnableResult.NotFound => "ControllerWakeGone",
+            _ => "ControllerWakeFailed"
+        }));
     }
 
     private void UpdateControllerTest(ControllerState pad)

@@ -273,7 +273,7 @@
                             <TextBlock x:Name="TourBody" FontSize="25" FontWeight="Medium" LineHeight="32" TextAlignment="Center" TextWrapping="Wrap"
                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                             <StackPanel Spacing="14" Margin="0,8,0,0">
-                                <Button x:Name="TourNext" Style="{StaticResource TvAlertButton}" Click="OnTourNextClick"/>
+                                <Button x:Name="TourNext" Style="{StaticResource TvConfirmButton}" Click="OnTourNextClick"/>
                                 <Button x:Name="TourSkip" Style="{StaticResource TvSecondaryAlertButton}" Click="OnTourSkipClick"/>
                             </StackPanel>
                         </StackPanel>

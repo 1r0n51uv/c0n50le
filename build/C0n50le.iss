@@ -65,6 +65,11 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 ; Tells the app it is installed: data goes to %LOCALAPPDATA%\c0n50le instead of next to the exe.
 Source: "C0n50le.installed"; DestDir: "{app}"; Flags: ignoreversion
 
+[InstallDelete]
+; Up to 0.2.1 the resource index was resources.pri; now it is C0n50le.pri. WinUI loads resources.pri first, so a copy
+; left behind by an update serves the old XAML to the new code and the app crashes at startup.
+Type: files; Name: "{app}\resources.pri"
+
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon

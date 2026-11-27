@@ -12,6 +12,7 @@
     <SolidColorBrush x:Key="FocusTextBrush" Color="#FF000000"/>
     <SolidColorBrush x:Key="ControlBrush" Color="#FF3A3A3C"/>
     <SolidColorBrush x:Key="CancelBrush" Color="#FFB3261E"/>
+    <SolidColorBrush x:Key="ConfirmBrush" Color="#FF1F8A3B"/>
     <SolidColorBrush x:Key="MaterialStrokeBrush" Color="#1AFFFFFF"/>
     <SolidColorBrush x:Key="ScrimBrush" Color="#80000000"/>
     <SolidColorBrush x:Key="SeparatorBrush" Color="#26FFFFFF"/>
@@ -217,6 +218,11 @@
     <!-- Cancelling is the destructive/escape action; keep it unmistakably red. -->
     <Style x:Key="TvCancelButton" TargetType="Button" BasedOn="{StaticResource TvAlertButton}">
         <Setter Property="Background" Value="{StaticResource CancelBrush}"/>
+    </Style>
+
+    <!-- The main action of a modal (the one A selects) is green, opposite the red Cancel. Only in modals. -->
+    <Style x:Key="TvConfirmButton" TargetType="Button" BasedOn="{StaticResource TvAlertButton}">
+        <Setter Property="Background" Value="{StaticResource ConfirmBrush}"/>
     </Style>
 
     <!-- Secondary actions such as Skip stay quiet and grey. -->

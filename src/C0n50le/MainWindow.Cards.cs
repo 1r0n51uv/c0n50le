@@ -200,7 +200,7 @@ public sealed partial class MainWindow
         for (var index = 0; index < buttons.Length; index++)
         {
             var choice = index;
-            var style = buttons[index] == Strings.Get("Cancel") ? "TvCancelButton" : "TvAlertButton";
+            var style = buttons[index] == Strings.Get("Cancel") ? "TvCancelButton" : index == 0 ? "TvConfirmButton" : "TvAlertButton";
             var button = new Button { Style = ThemeManager.Style(style), Content = buttons[index] };
             button.Click += (_, _) =>
             {
