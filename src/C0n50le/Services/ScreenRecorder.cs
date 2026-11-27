@@ -62,6 +62,7 @@ public sealed class ScreenRecorder : IAsyncDisposable
         _pool.FrameArrived += OnFrameArrived;
         _session = _pool.CreateCaptureSession(item);
         _session.IsCursorCaptureEnabled = true;
+        Direct3D.HideCaptureBorder(_session);
 
         var video = VideoEncodingProperties.CreateUncompressed(MediaEncodingSubtypes.Bgra8, width, height);
         var source = new MediaStreamSource(new VideoStreamDescriptor(video)) { BufferTime = TimeSpan.Zero, IsLive = true };
@@ -182,6 +183,34 @@ public sealed class ScreenRecorder : IAsyncDisposable
                 Marshal.Release(context);
                 Marshal.Release(device);
             }
+        }
+
+        private static readonly Guid CaptureSession3 = new("f2cdd966-22ae-5ea1-9596-3a289344c3be");
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int PutBool(nint self, byte value);
+
+        /// <summary>
+        /// Windows 11 draws a yellow frame around a captured screen unless the app asks it not to (IsBorderRequired, not
+        /// in this SDK's projection, so set through its interface). Where it isn't allowed the frame simply stays.
+        /// </summary>
+        public static void HideCaptureBorder(GraphicsCaptureSession session)
+        {
+            var pointer = WinRT.MarshalInspectable<object>.FromManaged(session);
+            try
+            {
+                if (Marshal.QueryInterface(pointer, in CaptureSession3, out var session3) < 0) return;
+                try
+                {
+                    var table = Marshal.ReadIntPtr(session3);
+                    var put = Marshal.GetDelegateForFunctionPointer<PutBool>(Marshal.ReadIntPtr(table, 7 * nint.Size));
+                    var result = put(session3, 0);
+                    if (result < 0) AppLog.Write($"Registrazione: bordo giallo non rimovibile (0x{result:X8})");
+                }
+                finally { Marshal.Release(session3); }
+            }
+            catch (Exception ex) { AppLog.Write($"Registrazione: bordo: {ex.Message}"); }
+            finally { Marshal.Release(pointer); }
         }
 
         public static GraphicsCaptureItem CaptureItemForMonitor(nint monitor)

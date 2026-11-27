@@ -26,6 +26,7 @@ public sealed class RecordingIndicator
     private readonly TextBlock _time;
     private readonly Ellipse _dot;
     private readonly Grid _surface;
+    private readonly Border _tint;
     private readonly DispatcherQueueTimer _timer;
     private DateTimeOffset _started;
 
@@ -40,10 +41,26 @@ public sealed class RecordingIndicator
             Orientation = Orientation.Horizontal, Spacing = 12, HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center, Children = { _dot, _label, _time }
         };
-        _surface = new Grid { Children = { row } };
+        // The app bar's glass over the desktop: the window is clear and only the pill is drawn, with the bar's tint,
+        // sheen and lit rim (a separate window can't blur or bend the screen behind it), the text on top.
+        _tint = new Border { CornerRadius = new CornerRadius(Height / 2) };
+        _surface = new Grid
+        {
+            Children =
+            {
+                _tint,
+                new Border { Background = ThemeManager.Brush("SheenBrush"), CornerRadius = new CornerRadius(Height / 2), IsHitTestVisible = false },
+                row,
+                new Border
+                {
+                    BorderBrush = ThemeManager.Brush("RimBrush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(Height / 2),
+                    IsHitTestVisible = false
+                }
+            }
+        };
         // The layout is drawn at the app bar's size and scaled with the screen, like the home.
         var stage = new Viewbox { Stretch = Stretch.Uniform, Child = new Grid { Width = Width, Height = Height, Children = { _surface } } };
-        _window = new Window { Content = stage, Title = "c0n50le REC", SystemBackdrop = new DesktopAcrylicBackdrop() };
+        _window = new Window { Content = stage, Title = "c0n50le REC", SystemBackdrop = new ClearBackdrop() };
         _timer = _window.DispatcherQueue.CreateTimer();
         _timer.Interval = TimeSpan.FromMilliseconds(500);
         _timer.Tick += (_, _) => Tick();
@@ -65,14 +82,19 @@ public sealed class RecordingIndicator
         var handle = Handle;
         // No taskbar button, never activated by a click, and left out of every screen capture (ours included).
         SetWindowLongPtr(handle, -20, GetWindowLongPtr(handle, -20) | 0x80 | 0x08000000);
+        // No frame of its own: square corners and no border, so nothing shows around the pill.
+        var square = 1;
+        DwmSetWindowAttribute(handle, 33, ref square, sizeof(int));
+        var none = unchecked((int)0xFFFFFFFE);
+        DwmSetWindowAttribute(handle, 34, ref none, sizeof(int));
         SetWindowDisplayAffinity(handle, 0x11);
     }
 
-    /// <summary>Takes the theme's colours: the app bar's tint over the glass, its text colour.</summary>
+    /// <summary>Takes the theme's text colour; the glass follows the theme by itself.</summary>
     private void Paint()
     {
         var theme = ThemeManager.Current;
-        _surface.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(theme.IsLight ? (byte)0x8C : (byte)0x99,
+        _tint.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(theme.IsLight ? (byte)0xC8 : (byte)0xBF,
             theme.Material.R, theme.Material.G, theme.Material.B));
         _label.Foreground = _time.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(theme.Text.A, theme.Text.R, theme.Text.G, theme.Text.B));
         if (_window.Content is FrameworkElement root) root.RequestedTheme = ThemeManager.ElementTheme;
@@ -92,10 +114,10 @@ public sealed class RecordingIndicator
         var height = (int)Math.Round(Height * scale);
         _window.AppWindow.MoveAndResize(new RectInt32(screen.Left + (screen.Right - screen.Left - width) / 2,
             screen.Top + (int)Math.Round(Top * scale), width, height));
-        // A pill, like the app bar: the window itself is cut to the shape.
-        SetWindowRgn(Handle, CreateRoundRectRgn(0, 0, width + 1, height + 1, height, height), true);
         Tick();
         _window.AppWindow.Show(false);
+        var region = CreateRoundRectRgn(0, 0, width + 1, height + 1, height, height);
+        if (region != 0 && SetWindowRgn(Handle, region, true) == 0) DeleteObject(region);
         _timer.Start();
     }
 
@@ -135,4 +157,40 @@ public sealed class RecordingIndicator
     [DllImport("user32.dll")] private static extern bool SetWindowPos(nint window, nint after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] private static extern int SetWindowRgn(nint window, nint region, bool redraw);
     [DllImport("gdi32.dll")] private static extern nint CreateRoundRectRgn(int left, int top, int right, int bottom, int width, int height);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(nint handle);
+    [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(nint window, int attribute, ref int value, int size);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DispatcherQueueOptions { public int Size, ThreadType, Apartment; }
+
+    [DllImport("CoreMessaging.dll")]
+    private static extern int CreateDispatcherQueueController(DispatcherQueueOptions options, out nint controller);
+
+    /// <summary>A fully clear window background, so only what the content draws is visible.</summary>
+    private sealed class ClearBackdrop : SystemBackdrop
+    {
+        private static Windows.System.DispatcherQueueController? _queueController;
+        private Windows.UI.Composition.Compositor? _compositor;
+
+        protected override void OnTargetConnected(Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop target, XamlRoot root)
+        {
+            base.OnTargetConnected(target, root);
+            // The system compositor needs a system dispatcher queue on this thread (WinUI runs its own).
+            if (Windows.System.DispatcherQueue.GetForCurrentThread() is null)
+            {
+                var options = new DispatcherQueueOptions { Size = Marshal.SizeOf<DispatcherQueueOptions>(), ThreadType = 2, Apartment = 2 };
+                Marshal.ThrowExceptionForHR(CreateDispatcherQueueController(options, out var controller));
+                try { _queueController = WinRT.MarshalInterface<Windows.System.DispatcherQueueController>.FromAbi(controller); }
+                finally { Marshal.Release(controller); }
+            }
+            _compositor ??= new Windows.UI.Composition.Compositor();
+            target.SystemBackdrop = _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+        }
+
+        protected override void OnTargetDisconnected(Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop target)
+        {
+            base.OnTargetDisconnected(target);
+            target.SystemBackdrop = null;
+        }
+    }
 }

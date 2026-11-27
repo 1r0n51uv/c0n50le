@@ -52,6 +52,20 @@ public sealed partial class MainWindow
         ElementCompositionPreview.GetElementVisual(Toast).Opacity = 0;
         // The lifted card casts its tvOS shadow on the page behind it.
         _shadow.Receivers.Add(ShelfFade);
+        // The cards scroll inside the dock's rounded shape: at the ends they go under its curve, never past it.
+        DockScroll.SizeChanged += (_, _) => ClipDock();
+    }
+
+    private void ClipDock()
+    {
+        var visual = ElementCompositionPreview.GetElementVisual(DockScroll);
+        var compositor = visual.Compositor;
+        var size = new Vector2((float)DockScroll.ActualWidth, (float)DockScroll.ActualHeight);
+        if (size.X <= 0 || size.Y <= 0) return;
+        var shape = compositor.CreateRoundedRectangleGeometry();
+        shape.Size = size;
+        shape.CornerRadius = new Vector2((float)Dock.CornerRadius.TopLeft);
+        visual.Clip = compositor.CreateGeometricClip(shape);
     }
 
     /// <summary>Scans the PC and rebuilds the home, keeping the selection.</summary>
@@ -521,6 +535,7 @@ public sealed partial class MainWindow
     }
 
     private IReadOnlyList<string> _heroBackgrounds = [];
+    private int _driftTurn;
     private int _heroBackground;
     private DispatcherQueueTimer? _backdropTimer;
 
@@ -534,7 +549,7 @@ public sealed partial class MainWindow
     private DispatcherQueueTimer CreateBackdropTimer()
     {
         var timer = DispatcherQueue.CreateTimer();
-        timer.Interval = TimeSpan.FromSeconds(10);
+        timer.Interval = TimeSpan.FromSeconds(5);
         timer.Tick += (_, _) =>
         {
             if (_heroBackgrounds.Count < 2 || _heroShowsAction || !AppWindow.IsVisible || PageOpen) return;
@@ -566,10 +581,11 @@ public sealed partial class MainWindow
         {
             if (_backdropRequest != request || _exiting) return;
             _frontBackdrop = layer;
-            // A slow cross-fade, and each picture drifts closer while it is up, so the turn never feels like a cut.
-            Motion.Fade(layer, 1f, 1400, _prefs.ReduceMotion);
-            if (old is not null && old != layer) Motion.Fade(old, 0, 1400, _prefs.ReduceMotion);
-            Motion.Drift(layer, _prefs.ReduceMotion);
+            // A soft cross-fade, and each picture moves while it is up (in, out, sideways, rising), a different way each
+            // turn, so the change never feels like a cut.
+            Motion.Fade(layer, 1f, 1200, _prefs.ReduceMotion);
+            if (old is not null && old != layer) Motion.Fade(old, 0, 1200, _prefs.ReduceMotion);
+            Motion.Drift(layer, _driftTurn++, _prefs.ReduceMotion);
         }
         bitmap.ImageOpened += (_, _) => Arrived();
         bitmap.ImageFailed += (_, _) =>
@@ -839,23 +855,49 @@ internal static class Motion
         visual.StartAnimation("Opacity", animation);
     }
 
-    /// <summary>A background drifts slowly closer (6% over 12 s, easing out) while it is on screen.</summary>
-    public static void Drift(FrameworkElement element, bool reduce)
+    /// <summary>
+    /// A background moves gently while it is on screen, a different way each turn: settling in from close, easing
+    /// closer, panning left, panning right, rising. It runs a little longer than a turn so it never stops on screen.
+    /// </summary>
+    public static void Drift(FrameworkElement element, int turn, bool reduce)
     {
         var visual = ElementCompositionPreview.GetElementVisual(element);
         visual.StopAnimation("Scale");
+        ElementCompositionPreview.SetIsTranslationEnabled(element, true);
+        visual.StopAnimation("Translation");
+        visual.Properties.InsertVector3("Translation", Vector3.Zero);
         if (!Enabled(reduce))
         {
             visual.Scale = Vector3.One;
             return;
         }
-        visual.CenterPoint = new Vector3((float)element.ActualWidth / 2, (float)element.ActualHeight / 2, 0);
+        var width = (float)element.ActualWidth;
+        var height = (float)element.ActualHeight;
+        visual.CenterPoint = new Vector3(width / 2, height / 2, 0);
         var compositor = visual.Compositor;
+        var ease = compositor.CreateCubicBezierEasingFunction(new Vector2(0.25f, 0.1f), new Vector2(0.25f, 1));
+        var duration = TimeSpan.FromSeconds(6.5);
+        var zoom = 1.08f;
+        var pan = width * 0.025f;
+        var (scaleFrom, scaleTo, offsetFrom, offsetTo) = (turn % 5) switch
+        {
+            0 => (zoom, 1f, Vector3.Zero, Vector3.Zero),                                   // settles in from close
+            1 => (1f, zoom, Vector3.Zero, Vector3.Zero),                                   // eases closer
+            2 => (zoom, zoom, new Vector3(pan, 0, 0), new Vector3(-pan, 0, 0)),            // pans left
+            3 => (zoom, zoom, new Vector3(-pan, 0, 0), new Vector3(pan, 0, 0)),            // pans right
+            _ => (zoom, 1.04f, new Vector3(0, height * 0.02f, 0), new Vector3(0, -height * 0.01f, 0)) // rises
+        };
         var scale = compositor.CreateVector3KeyFrameAnimation();
-        scale.InsertKeyFrame(0, new Vector3(1.06f, 1.06f, 1));
-        scale.InsertKeyFrame(1, Vector3.One, compositor.CreateCubicBezierEasingFunction(new Vector2(0.2f, 0), new Vector2(0.2f, 1)));
-        scale.Duration = TimeSpan.FromSeconds(12);
+        scale.InsertKeyFrame(0, new Vector3(scaleFrom, scaleFrom, 1));
+        scale.InsertKeyFrame(1, new Vector3(scaleTo, scaleTo, 1), ease);
+        scale.Duration = duration;
         visual.StartAnimation("Scale", scale);
+        if (offsetFrom == offsetTo) return;
+        var offset = compositor.CreateVector3KeyFrameAnimation();
+        offset.InsertKeyFrame(0, offsetFrom);
+        offset.InsertKeyFrame(1, offsetTo, ease);
+        offset.Duration = duration;
+        visual.StartAnimation("Translation", offset);
     }
 
     /// <summary>The top shelf fades in and rises a little when the focus moves to another game.</summary>
