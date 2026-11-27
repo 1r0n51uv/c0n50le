@@ -71,6 +71,7 @@ public sealed partial class MainWindow : Window
         Root.SizeChanged += (_, _) => UpdateStage();
         InitializeInput();
         InitializeLibrary();
+        InitializeWidgets();
         ApplyTexts();
         Strings.Changed += ApplyTexts;
         AppLog.Write($"Avvio c0n50le {Updater.CurrentVersion} ({_startMode})");
@@ -186,6 +187,9 @@ public sealed partial class MainWindow : Window
         _pollTimer?.Stop();
         _sessionTimer?.Stop();
         _clockTimer.Stop();
+        _feedTimer?.Stop();
+        _galleryTimer?.Stop();
+        _widgetRequest?.Cancel();
         _artworkLookup?.Cancel();
         _descriptionLifetime.Cancel();
         _session?.Dispose();
@@ -220,6 +224,7 @@ public sealed partial class MainWindow : Window
         Home.RefreshTexts();
         RefreshHero();
         RenderCards();
+        ApplyWidgets(reload: true);
         if (SystemPage.Visibility == Visibility.Visible) RenderSystem();
     }
 

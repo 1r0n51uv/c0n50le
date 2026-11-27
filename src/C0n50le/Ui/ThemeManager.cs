@@ -54,12 +54,12 @@ public static class ThemeManager
         material.TintLuminosityOpacity = theme.IsGlass ? Math.Clamp(theme.TintOpacity + 0.15, 0, 1) : 1;
         material.FallbackColor = Color(theme.Material.WithAlpha(theme.IsGlass ? (byte)230 : (byte)255));
 
-        // Liquid Glass: sheen on top and a lit rim, scaled by the depth; nothing when it is off.
+        // Liquid Glass: sheen on top and a faint lit rim (never a visible border), scaled by the depth; nothing when it is off.
         var sheen = theme.Sheen;
         var top = (LinearGradientBrush)Application.Current.Resources["SheenBrush"];
         SetStops(top, Alpha(0.20 * sheen), Alpha(0.06 * sheen), Alpha(0), Alpha(0.04 * sheen));
         var rim = (LinearGradientBrush)Application.Current.Resources["RimBrush"];
-        SetStops(rim, Alpha(0.60 * sheen), Alpha(0.10 * sheen), Alpha(0.05 * sheen), Alpha(0.35 * sheen));
+        SetStops(rim, Alpha(0.24 * sheen), Alpha(0.04 * sheen), Alpha(0.02 * sheen), Alpha(0.14 * sheen));
 
         var backdrop = theme.Backdrop;
         var fade = (LinearGradientBrush)Application.Current.Resources["ShelfFadeBrush"];

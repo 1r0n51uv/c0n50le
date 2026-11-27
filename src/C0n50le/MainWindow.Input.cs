@@ -238,17 +238,18 @@ public sealed partial class MainWindow
             : Strings.Get("MouseKeyboard");
     }
 
+    /// <summary>In controller mode the pointer disappears over the home; it comes back as soon as the mouse moves.</summary>
     private void HideCursor()
     {
         if (_cursorHidden || !IsForeground) return;
         _cursorHidden = true;
-        Root.SetCursorHidden(true);
+        CursorHider.Hide(_handle);
     }
 
     private void RestoreCursor()
     {
         if (!_cursorHidden) return;
         _cursorHidden = false;
-        Root.SetCursorHidden(false);
+        CursorHider.Show();
     }
 }

@@ -24,7 +24,8 @@ c0n50le porta la tua libreria PC in una home ispirata a tvOS. Scegli un gioco ne
 - **Copertine, sfondi e loghi.** L'abbinamento con LaunchBox Games Database è automatico quando il titolo è riconosciuto con certezza. Puoi anche cercare un altro titolo e vedere l'anteprima prima di confermare.
 - **Avvia, torna alla home, riprendi.** Premi <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>F11</kbd> oppure <kbd>Visualizza</kbd> + <kbd>Y</kbd> sul controller per tornare alla home durante una partita. Seleziona di nuovo la card per riprendere il gioco aperto. Alla chiusura del gioco, la home riappare da sola.
 - **Dal controller al mouse, al volo.** Con i controller Xbox, PlayStation e Switch Pro l'interfaccia evidenzia l'elemento selezionato, mostra i suggerimenti dei pulsanti e nasconde il puntatore. Muovi il mouse o premi un tasto per cambiare modalità.
-- **La home come la vuoi tu.** Tema chiaro o scuro, dock con Liquid Glass regolabile su tre profondità o disattivabile, menu contestuali, suoni, musica e tour guidato.
+- **La home come la vuoi tu.** Tema chiaro o scuro, barra in alto e dock in Liquid Glass regolabile su tre profondità o disattivabile, menu contestuali, suoni, musica e tour guidato.
+- **Widget nella home.** Meteo della tua città (Open-Meteo), titoli da un feed RSS o Atom a scelta e una galleria che scorre le foto di una cartella, tutto configurabile in Sistema → Widget.
 - **Comandi e manutenzione integrati.** Impostazioni per schermo e scala, prova del controller, icona nell'area di notifica, avvio con Windows, diagnostica e aggiornamenti da GitHub con verifica SHA-256.
 
 ### Descrizioni in italiano e inglese
@@ -51,7 +52,7 @@ L'app usa WinUI 3 e .NET 8. Per compilarla serve il .NET SDK 8 su Windows. Per c
 ```powershell
 dotnet test tests/C0n50le.Tests
 dotnet build src/C0n50le/C0n50le.csproj -c Debug -r win-x64 -p:Platform=x64
-./build/Publish-C0n50le.ps1 -Version 0.1.3
+./build/Publish-C0n50le.ps1 -Version 0.2.0
 ```
 
 - [App WinUI 3](src/C0n50le) · [Logica applicativa](src/C0n50le.Core) · [Test xUnit](tests/C0n50le.Tests)

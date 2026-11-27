@@ -40,6 +40,15 @@ public sealed class Preferences
     public bool Intro { get; set; } = true;
     public bool TourDone { get; set; }
 
+    // Home widgets: weather, news and gallery, on the right of the top shelf.
+    public bool ShowWidgets { get; set; } = true;
+    public string WeatherCity { get; set; } = "";
+    public bool WeatherFahrenheit { get; set; }
+    /// <summary>RSS or Atom address; "" follows the interface language.</summary>
+    public string NewsFeed { get; set; } = "";
+    /// <summary>Pictures folder; "" is the Windows Pictures folder.</summary>
+    public string GalleryFolder { get; set; } = "";
+
     // Start
     public bool OpenFullscreen { get; set; } = true;
     public bool CloseToTray { get; set; } = true;
@@ -101,6 +110,10 @@ public sealed class Preferences
         if (!Input.ShortcutChoices.IsKnownKeyboard(KeyboardShortcut)) KeyboardShortcut = "F11";
         if (!Input.ShortcutChoices.IsKnownController(ControllerShortcut))
             ControllerShortcut = Input.ControllerButtons.View | Input.ControllerButtons.Y;
+        WeatherCity = (WeatherCity ?? "").Trim();
+        NewsFeed = (NewsFeed ?? "").Trim();
+        if (NewsFeed.Length > 0 && !Widgets.News.IsValidUrl(NewsFeed)) NewsFeed = "";
+        GalleryFolder = (GalleryFolder ?? "").Trim();
         if (Language is not ("" or "it-IT" or "en-US")) Language = "";
     }
 
