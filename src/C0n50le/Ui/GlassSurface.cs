@@ -63,7 +63,7 @@ public sealed class GlassSurface : Grid
             Background = ThemeManager.Brush("MaterialBrush");
             return;
         }
-        var preset = LiquidPreset.For(_level, _dark);
+        var preset = LiquidPreset.For(_dark);
         if (Popup) preset = preset.ForPopup();
         Background = new LiquidGlassBrush
         {

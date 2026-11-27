@@ -35,6 +35,9 @@ public sealed class Gallery
     /// <summary>The widget shows up to this many pictures at once.</summary>
     public const int MaxShown = 4;
 
+    /// <summary>The most recent pictures, up to <paramref name="max"/> (the folder is read newest first).</summary>
+    public IReadOnlyList<string> Newest(int max = MaxShown) => [.. _pictures.Take(Math.Max(0, max))];
+
     /// <summary>The next pictures to show together: as many as the folder has, up to <paramref name="max"/>, never twice.</summary>
     public IReadOnlyList<string> NextBatch(int max = MaxShown)
     {
@@ -57,21 +60,21 @@ public sealed class Gallery
         _ => [new(0, 0, 1, 1), new(0, 1, 1, 1), new(1, 0, 1, 1), new(1, 1, 1, 1)]
     };
 
-    /// <summary>Reads the folder without failing on folders it may not open; a missing folder gives an empty gallery.</summary>
-    public static Gallery Load(string folder, Random? random = null)
+    /// <summary>
+    /// Reads the folder without failing on folders it may not open, the most recent pictures first (a screenshot just
+    /// taken leads); a missing folder gives an empty gallery.
+    /// </summary>
+    public static Gallery Load(string folder)
     {
         if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder)) return new Gallery([]);
         var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.Hidden | FileAttributes.System };
-        var pictures = Directory.EnumerateFiles(folder, "*", options)
-            .Where(file => Extensions.Contains(Path.GetExtension(file)))
+        var pictures = new DirectoryInfo(folder).EnumerateFiles("*", options)
+            .Where(file => Extensions.Contains(file.Extension))
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .ThenBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)
             .Take(MaxPictures)
+            .Select(file => file.FullName)
             .ToList();
-        var shuffle = random ?? Random.Shared;
-        for (var index = pictures.Count - 1; index > 0; index--)
-        {
-            var other = shuffle.Next(index + 1);
-            (pictures[index], pictures[other]) = (pictures[other], pictures[index]);
-        }
         return new Gallery(pictures);
     }
 }

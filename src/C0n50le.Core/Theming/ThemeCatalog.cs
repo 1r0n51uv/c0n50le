@@ -19,10 +19,9 @@ public enum GlassDepth
     Deep = 3,
     /// <summary>Real liquid glass (LiquidGlassWinUI): refraction, dispersion and glare over the live backdrop.</summary>
     Liquid = 4,
-    /// <summary>Liquid glass, lighter: denser tint and softer refraction, the most readable.</summary>
-    LiquidSubtle = 5,
-    /// <summary>Liquid glass, deeper: clearer, with stronger refraction, dispersion and glare.</summary>
-    LiquidDeep = 6
+    // 5 and 6 were two more liquid levels for a while: they read back as Liquid (see NormalizeGlass).
+    /// <summary>Beyond Deep: the most see-through acrylic, the artwork almost bare under a thin tint.</summary>
+    Clear = 7
 }
 
 /// <summary>The numbers handed to the liquid glass shader for one level (see GlassSurface).</summary>
@@ -30,14 +29,10 @@ public sealed record LiquidPreset(
     double Blur, double Thickness, double Refraction, double Dispersion, double DispersionRange,
     double Glare, double GlareOpposite, double Bloom, double Saturation, double Tint, double Brightness)
 {
-    /// <summary>The three liquid levels, dark or light: the tint keeps the text readable over bright artwork.</summary>
-    public static LiquidPreset For(GlassDepth glass, bool dark) => glass switch
-    {
-        // Blur is a radius in pixels; Bloom is how much of the sharp backdrop comes back (0 = fully frosted, 1 = sharp).
-        GlassDepth.LiquidSubtle => new(22, 16, 1.2, 3, 0.35, 35, 25, 0, 1.05, dark ? 0.5 : 0.46, dark ? -0.06 : 0.04),
-        GlassDepth.LiquidDeep => new(5, 48, 2.6, 12, 0.9, 95, 75, 0.25, 1.3, dark ? 0.16 : 0.14, 0),
-        _ => new(12, 30, 1.8, 7, 0.6, 65, 50, 0.08, 1.18, dark ? 0.32 : 0.28, dark ? -0.03 : 0.02)
-    };
+    /// <summary>The liquid glass, dark or light: the tint keeps the text readable over bright artwork.</summary>
+    // Blur is a radius in pixels; Bloom is how much of the sharp backdrop comes back (0 = fully frosted, 1 = sharp).
+    public static LiquidPreset For(bool dark) =>
+        new(12, 30, 1.8, 7, 0.6, 65, 50, 0.08, 1.18, dark ? 0.32 : 0.28, dark ? -0.03 : 0.02);
 
     /// <summary>
     /// The same level for a popup (menu, alert, notice): what is behind must not compete with its text, so it is always
@@ -69,7 +64,7 @@ public sealed record ThemeTokens
     public required Argb Text { get; init; }
     /// <summary>Secondary text: captions, values, headers (white or black at 50–60%).</summary>
     public required Argb TextSecondary { get; init; }
-    /// <summary>The focused element's platter (white at 90%) and its text.</summary>
+    /// <summary>The focused element's platter (white in the dark theme, black in the light one) and its text.</summary>
     public required Argb Focus { get; init; }
     public required Argb FocusText { get; init; }
     /// <summary>The dim behind an alert.</summary>
@@ -94,13 +89,14 @@ public static class ThemeCatalog
 
     public static IReadOnlyList<string> Ids { get; } = [DarkId, LightId];
     public static IReadOnlyList<GlassDepth> Depths { get; } = 
-        [GlassDepth.Off, GlassDepth.Subtle, GlassDepth.Medium, GlassDepth.Deep, GlassDepth.LiquidSubtle, GlassDepth.Liquid, GlassDepth.LiquidDeep];
+        [GlassDepth.Off, GlassDepth.Subtle, GlassDepth.Medium, GlassDepth.Deep, GlassDepth.Clear, GlassDepth.Liquid];
 
-    public static bool IsLiquid(GlassDepth glass) => glass is GlassDepth.Liquid or GlassDepth.LiquidSubtle or GlassDepth.LiquidDeep;
+    public static bool IsLiquid(GlassDepth glass) => glass == GlassDepth.Liquid;
 
     public static string Normalize(string? id) => string.Equals(id, LightId, StringComparison.OrdinalIgnoreCase) ? LightId : DarkId;
 
-    public static GlassDepth NormalizeGlass(int value) => Enum.IsDefined(typeof(GlassDepth), value) ? (GlassDepth)value : DefaultGlass;
+    public static GlassDepth NormalizeGlass(int value) => value is 5 or 6 ? GlassDepth.Liquid
+        : Enum.IsDefined(typeof(GlassDepth), value) ? (GlassDepth)value : DefaultGlass;
 
     public static ThemeTokens Get(string? id, GlassDepth glass) =>
         Normalize(id) == LightId ? Light(glass) : Dark(glass);
@@ -113,6 +109,7 @@ public static class ThemeCatalog
         GlassDepth.Medium => 0x70,
         // Liquid: the fallback acrylic is as dense as Medium, matching the tint inside the liquid shader.
         _ when IsLiquid(glass) => 0x70,
+        GlassDepth.Clear => 0x24,
         _ => 0x42
     };
 
@@ -122,9 +119,7 @@ public static class ThemeCatalog
         GlassDepth.Subtle => 0.35,
         GlassDepth.Medium => 0.6,
         // The liquid shader draws its own glare and rim: only a hint of sheen on top.
-        GlassDepth.LiquidSubtle => 0.15,
         GlassDepth.Liquid => 0.3,
-        GlassDepth.LiquidDeep => 0.5,
         _ => 1
     };
 
@@ -134,6 +129,7 @@ public static class ThemeCatalog
         GlassDepth.Subtle => 0.70,
         GlassDepth.Medium => 0.45,
         _ when IsLiquid(glass) => 0.45,
+        GlassDepth.Clear => 0.10,
         _ => 0.23
     };
 
@@ -169,8 +165,9 @@ public static class ThemeCatalog
         Control = Argb.FromHex(IsLiquid(glass) ? "#1F000000" : "#FFE5E5EA"),
         Text = Argb.FromHex("#000000"),
         TextSecondary = Argb.FromHex("#99000000"),
-        Focus = Argb.FromHex("#F2FFFFFF"),
-        FocusText = Argb.FromHex("#000000"),
+        // The light theme turns the focus around: a black platter with white text, the dark theme's white one reversed.
+        Focus = Argb.FromHex("#F21C1C1E"),
+        FocusText = Argb.FromHex("#FFFFFF"),
         Scrim = Argb.FromHex(IsLiquid(glass) ? "#33000000" : "#66000000"),
         Separator = Argb.FromHex("#1F000000"),
         Sheen = Sheen(glass),

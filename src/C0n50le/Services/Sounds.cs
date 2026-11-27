@@ -69,7 +69,11 @@ public static class HomeMusic
         _wanted = play;
         try
         {
-            if (play && _player is null) _player = Create();
+            if (play && _player is null)
+            {
+                _player = Create();
+                AppLog.Write("Musica: avvio");
+            }
             if (_player is null) return;
             if (play && _player.PlaybackSession.PlaybackState != MediaPlaybackState.Playing)
             {
@@ -95,13 +99,17 @@ public static class HomeMusic
             writer.DetachStream();
         }
         stream.Seek(0);
-        return new MediaPlayer
+        var player = new MediaPlayer
         {
             Source = MediaSource.CreateFromStream(stream, "audio/wav"),
             IsLoopingEnabled = true,
             Volume = 0,
             AudioCategory = MediaPlayerAudioCategory.GameMedia
         };
+        // A player that fails says so in the log, instead of the home just staying silent.
+        player.MediaFailed += (_, args) => AppLog.Write($"Musica: errore {args.Error} {args.ErrorMessage} {args.ExtendedErrorCode?.Message}");
+        player.MediaOpened += (_, _) => AppLog.Write("Musica: pronta");
+        return player;
     }
 
     private static void Fade(DispatcherQueue dispatcher, double target, bool pauseAtEnd)

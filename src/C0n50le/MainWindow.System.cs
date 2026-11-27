@@ -271,7 +271,19 @@ public sealed partial class MainWindow
         var shots = ShortcutChoices.Screenshot.Select(mask => mask == 0 ? Strings.Get("Off") : ButtonGlyphs.Combination(mask, family)).ToArray();
         var shotIndex = ShortcutChoices.Screenshot.ToList().IndexOf(_prefs.ScreenshotShortcut);
         Choice("ScreenshotShortcut", "ScreenshotShortcutBody", shots[Math.Max(0, shotIndex)], shots, shotIndex,
-            index => _prefs.ScreenshotShortcut = ShortcutChoices.Screenshot[index]);
+            index =>
+            {
+                _prefs.ScreenshotShortcut = ShortcutChoices.Screenshot[index];
+                // One combination does one thing: the recording gives way.
+                if (_prefs.ScreenshotShortcut != 0 && _prefs.RecordingShortcut == _prefs.ScreenshotShortcut) _prefs.RecordingShortcut = 0;
+            });
+        var records = ShortcutChoices.Recording.Select(mask => mask == 0 ? Strings.Get("Off") : ButtonGlyphs.Combination(mask, family)).ToArray();
+        var recordIndex = ShortcutChoices.Recording.ToList().IndexOf(_prefs.RecordingShortcut);
+        Choice("RecordingShortcut", "RecordingShortcutBody", records[Math.Max(0, recordIndex)], records, recordIndex, index =>
+        {
+            _prefs.RecordingShortcut = ShortcutChoices.Recording[index];
+            if (_prefs.RecordingShortcut != 0 && _prefs.ScreenshotShortcut == _prefs.RecordingShortcut) _prefs.ScreenshotShortcut = 0;
+        });
         var wake = Row("ControllerWake", "ControllerWakeBody", WakeValueText(), chevron: true);
         _wakeValue = (TextBlock)wake.Tag;
         wake.Click += async (_, _) =>

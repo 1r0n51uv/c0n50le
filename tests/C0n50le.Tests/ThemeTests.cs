@@ -17,7 +17,7 @@ public sealed class ThemeTests
         var theme = ThemeCatalog.Get(id, depth);
         // The worst case is artwork the same tone as the text behind see-through glass.
         var behind = theme.IsLight ? Argb.FromHex("#000000") : Argb.FromHex("#FFFFFF");
-        var worst = MaterialOver(theme, behind.Blend(theme.Backdrop, depth == GlassDepth.Deep ? 0.5 : 0.25));
+        var worst = MaterialOver(theme, behind.Blend(theme.Backdrop, depth is GlassDepth.Deep or GlassDepth.Clear ? 0.5 : 0.25));
         var floor = depth == GlassDepth.Off ? 7 : 3;
         Assert.True(Argb.Contrast(theme.Text, MaterialOver(theme, theme.Backdrop)) >= 7, $"{id}/{depth}: text on material");
         Assert.True(Argb.Contrast(theme.Text, worst) >= floor, $"{id}/{depth}: text on glass over artwork ({Argb.Contrast(theme.Text, worst):0.0})");
@@ -25,30 +25,35 @@ public sealed class ThemeTests
 
     [Theory]
     [MemberData(nameof(Every))]
-    public void Focused_platter_reads_black_on_white(string id, GlassDepth depth)
+    public void Focused_platter_reads_clearly_and_flips_with_the_theme(string id, GlassDepth depth)
     {
         var theme = ThemeCatalog.Get(id, depth);
         var platter = theme.Focus.Over(theme.Backdrop);
         Assert.True(Argb.Contrast(theme.FocusText, platter) >= 12, $"{id}/{depth}: focused text");
+        // White platter on the dark theme, black on the light one: always the opposite of the page.
+        Assert.True(theme.IsLight ? platter.Luminance < 0.05 : platter.Luminance > 0.7, $"{id}/{depth}: platter tone");
         Assert.True(Argb.Contrast(theme.TextSecondary.Over(theme.Backdrop), theme.Backdrop) >= 4.5, $"{id}/{depth}: secondary text");
     }
 
     [Fact]
-    public void Liquid_levels_get_clearer_and_stronger_with_depth()
+    public void There_is_one_liquid_level_and_old_ones_read_back_as_it()
     {
         foreach (var dark in new[] { true, false })
         {
-            var levels = new[] { GlassDepth.LiquidSubtle, GlassDepth.Liquid, GlassDepth.LiquidDeep }.Select(level => LiquidPreset.For(level, dark)).ToList();
-            Assert.Equal(levels.Select(level => level.Tint).OrderByDescending(tint => tint), levels.Select(level => level.Tint));
-            Assert.Equal(levels.Select(level => level.Refraction).OrderBy(value => value), levels.Select(level => level.Refraction));
-            Assert.Equal(levels.Select(level => level.Glare).OrderBy(value => value), levels.Select(level => level.Glare));
-            // Lighter levels are more frosted; the deeper ones let more of the sharp backdrop through.
-            Assert.Equal(levels.Select(level => level.Blur).OrderByDescending(value => value), levels.Select(level => level.Blur));
-            Assert.Equal(levels.Select(level => level.Bloom).OrderBy(value => value), levels.Select(level => level.Bloom));
-            Assert.All(levels, level => Assert.True(level.Bloom < 0.5 && level.ForPopup().Bloom == 0 && level.ForPopup().Blur >= level.Blur));
+            var liquid = LiquidPreset.For(dark);
+            Assert.True(liquid.Bloom < 0.5 && liquid.Blur >= 8);
+            Assert.True(liquid.ForPopup().Bloom == 0 && liquid.ForPopup().Blur >= liquid.Blur);
         }
-        Assert.All(ThemeCatalog.Depths.Where(ThemeCatalog.IsLiquid), level => Assert.True(ThemeCatalog.Get("dark", level).IsLiquid));
-        Assert.Equal(GlassDepth.LiquidDeep, ThemeCatalog.NormalizeGlass(6));
+        Assert.Single(ThemeCatalog.Depths.Where(ThemeCatalog.IsLiquid));
+        Assert.Equal(GlassDepth.Liquid, ThemeCatalog.NormalizeGlass(5));
+        Assert.Equal(GlassDepth.Liquid, ThemeCatalog.NormalizeGlass(6));
+        Assert.Equal(GlassDepth.Clear, ThemeCatalog.NormalizeGlass(7));
+        // Clear is the most see-through of the classic glass.
+        foreach (var id in ThemeCatalog.Ids)
+        {
+            Assert.True(ThemeCatalog.Get(id, GlassDepth.Clear).Material.A < ThemeCatalog.Get(id, GlassDepth.Deep).Material.A);
+            Assert.True(ThemeCatalog.Get(id, GlassDepth.Clear).TintOpacity < ThemeCatalog.Get(id, GlassDepth.Deep).TintOpacity);
+        }
     }
 
     [Fact]

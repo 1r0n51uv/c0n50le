@@ -112,11 +112,12 @@ public sealed class WidgetTests
             File.WriteAllText(Path.Combine(folder, "a.jpg"), "");
             File.WriteAllText(Path.Combine(folder, "sub", "b.PNG"), "");
             File.WriteAllText(Path.Combine(folder, "notes.txt"), "");
-            var gallery = Gallery.Load(folder, new Random(1));
+            File.SetLastWriteTimeUtc(Path.Combine(folder, "a.jpg"), new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            File.SetLastWriteTimeUtc(Path.Combine(folder, "sub", "b.PNG"), new DateTime(2026, 11, 27, 0, 0, 0, DateTimeKind.Utc));
+            var gallery = Gallery.Load(folder);
             Assert.Equal(2, gallery.Count);
-            var seen = new[] { gallery.Next(), gallery.Next(), gallery.Next() };
-            Assert.Equal(seen[0], seen[2]);
-            Assert.NotEqual(seen[0], seen[1]);
+            // The newest first, then around again.
+            Assert.Equal(["b.PNG", "a.jpg", "b.PNG"], new[] { gallery.Next(), gallery.Next(), gallery.Next() }.Select(Path.GetFileName));
             Assert.Null(Gallery.Load(Path.Combine(folder, "missing")).Next());
         }
         finally { Directory.Delete(folder, true); }

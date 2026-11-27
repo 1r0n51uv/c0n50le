@@ -47,7 +47,12 @@ public sealed partial class MainWindow
         _feedTimer.Tick += (_, _) => _ = RefreshFeedsAsync(skeleton: false);
         _galleryTimer = DispatcherQueue.CreateTimer();
         _galleryTimer.Interval = GalleryInterval;
-        _galleryTimer.Tick += (_, _) => ShowNextPicture();
+        // The folder is watched: a new picture (a screenshot just taken) is read at the next tick.
+        _galleryTimer.Tick += (_, _) =>
+        {
+            if (_galleryDirty) { _galleryDirty = false; _ = LoadGalleryAsync(); }
+            else ShowNextPicture();
+        };
         ElementCompositionPreview.GetElementVisual(GalleryGrid).Opacity = 0;
         // ApplyTexts, right after, shows them and fetches the first time.
     }
@@ -282,13 +287,47 @@ public sealed partial class MainWindow
 
     // ───────── Gallery ─────────
 
+    private FileSystemWatcher? _galleryWatcher;
+    private volatile bool _galleryDirty;
+    private IReadOnlyList<string> _galleryShown = [];
+
+    private void WatchGallery(string folder)
+    {
+        if (_galleryWatcher?.Path == folder) return;
+        _galleryWatcher?.Dispose();
+        _galleryWatcher = null;
+        if (!Directory.Exists(folder)) return;
+        try
+        {
+            var watcher = new FileSystemWatcher(folder)
+            {
+                IncludeSubdirectories = true, NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.DirectoryName
+            };
+            FileSystemEventHandler changed = (_, args) => { if (Gallery.Extensions.Contains(Path.GetExtension(args.FullPath))) _galleryDirty = true; };
+            watcher.Created += changed;
+            watcher.Deleted += changed;
+            watcher.Changed += changed;
+            watcher.Renamed += (_, _) => _galleryDirty = true;
+            watcher.EnableRaisingEvents = true;
+            _galleryWatcher = watcher;
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            AppLog.Write($"Galleria: impossibile osservare la cartella: {ex.Message}");
+        }
+    }
+
     private async Task LoadGalleryAsync()
     {
         var folder = GalleryFolder;
         _galleryLoaded = folder;
+        WatchGallery(folder);
         GalleryMessage.Text = "";
-        GallerySkeleton.Visibility = Visibility.Visible;
-        StartPulse(GallerySkeleton);
+        if (GalleryGrid.Children.Count == 0)
+        {
+            GallerySkeleton.Visibility = Visibility.Visible;
+            StartPulse(GallerySkeleton);
+        }
         _gallery = await Task.Run(() => Gallery.Load(folder));
         if (_galleryLoaded != folder) return;
         GalleryMessage.Text = _gallery.Count == 0 ? Strings.Get("GalleryEmpty") : "";
@@ -296,21 +335,23 @@ public sealed partial class MainWindow
         if (_gallery.Count == 0)
         {
             GalleryGrid.Children.Clear();
+            _galleryShown = [];
             HideGalleryPreview();
         }
         ShowNextPicture();
     }
 
     /// <summary>
-    /// Shows the next pictures, up to four, laid out by how many there are; the set fades in once they have opened. It waits
-    /// while one of them is being previewed.
+    /// Shows the newest pictures, up to four, laid out by how many there are; the set fades in once they have opened. It
+    /// changes only when the folder does, and waits while one of them is being previewed.
     /// </summary>
     private void ShowNextPicture()
     {
         if (!_prefs.ShowWidgets || !_prefs.ShowGallery || !AppWindow.IsVisible || HomePage.Visibility != Visibility.Visible) return;
         if (ViewerOpen || _previewing is not null || IsInside(FocusManager.GetFocusedElement(Root.XamlRoot) as DependencyObject ?? Root, GalleryGrid)) return;
-        var batch = _gallery.NextBatch();
-        if (batch.Count == 0) return;
+        var batch = _gallery.Newest();
+        if (batch.Count == 0 || (batch.SequenceEqual(_galleryShown) && GalleryGrid.Children.Count > 0)) return;
+        _galleryShown = batch;
         var request = ++_galleryRequest;
         var cells = Gallery.Layout(batch.Count);
         var scale = Math.Max(1, Root.XamlRoot?.RasterizationScale ?? 1);
@@ -451,23 +492,42 @@ public sealed partial class MainWindow
                 StepGalleryViewer(direction == FocusNavigationDirection.Left ? -1 : 1);
             return true;
         }
-        var tiles = GalleryGrid.Children.OfType<Button>().ToList();
-        if (tiles.Count == 0 || WidgetColumn.Visibility != Visibility.Visible || GalleryWidget.Visibility != Visibility.Visible) return false;
-        if (IsInside(focused, GalleryGrid))
+        var tiles = WidgetColumn.Visibility == Visibility.Visible && GalleryWidget.Visibility == Visibility.Visible
+            ? GalleryGrid.Children.OfType<Button>().ToList() : [];
+        var inBar = IsInside(focused, TopBar);
+        if (tiles.Count > 0 && IsInside(focused, GalleryGrid))
         {
             if (FocusManager.TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = GalleryGrid })) return true;
-            if (direction == FocusNavigationDirection.Up) return true;
-            FocusSelection();
+            // Above the pictures is the app bar; below or beside them, the dock.
+            if (direction == FocusNavigationDirection.Up) FocusTopBar();
+            else FocusSelection();
             return true;
         }
         if (direction == FocusNavigationDirection.Up && IsInside(focused, DockRow))
         {
+            if (tiles.Count == 0) { FocusTopBar(); return true; }
             // The picture nearest the dock: the bottom-left one.
             var target = tiles.OrderByDescending(tile => Grid.GetRow(tile) + Grid.GetRowSpan(tile)).ThenBy(Grid.GetColumn).First();
             target.Focus(FocusState.Keyboard);
             return true;
         }
-        return false;
+        if (inBar && direction == FocusNavigationDirection.Down)
+        {
+            // From the app bar down: the top picture on the right, or the dock.
+            var top = tiles.OrderBy(tile => Grid.GetRow(tile)).ThenByDescending(tile => Grid.GetColumn(tile) + Grid.GetColumnSpan(tile)).FirstOrDefault();
+            if (top is not null) top.Focus(FocusState.Keyboard);
+            else FocusSelection();
+            return true;
+        }
+        if (inBar && direction is FocusNavigationDirection.Left or FocusNavigationDirection.Right)
+            return FocusManager.TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = TopBar }) || true;
+        return inBar && direction == FocusNavigationDirection.Up;
+    }
+
+    /// <summary>The app bar's first button (it opens as soon as the focus is inside it).</summary>
+    private void FocusTopBar()
+    {
+        if (FocusManager.FindFirstFocusableElement(TopBar) is Control control) control.Focus(FocusState.Keyboard);
     }
 
     /// <summary>The picture large beside the widgets; the rotation waits until it closes.</summary>

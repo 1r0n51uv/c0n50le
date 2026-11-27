@@ -2,6 +2,7 @@ using C0n50le.Core.Audio;
 using C0n50le.Core.Input;
 using C0n50le.Core.Localization;
 using C0n50le.Services;
+using C0n50le.Ui;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
@@ -91,6 +92,11 @@ public sealed partial class MainWindow
             _ = TakeScreenshotAsync();
             return;
         }
+        if (ShortcutChoices.Triggered(_prefs.RecordingShortcut, previous, pad.Held))
+        {
+            _ = ToggleRecordingAsync();
+            return;
+        }
         if (!IsForeground || Root.XamlRoot is null) return;
         if (_input.Mode == InputMode.Controller) HideCursor();
         if (pad.Active)
@@ -136,6 +142,50 @@ public sealed partial class MainWindow
             if (IsForeground) ShowToast(Strings.Get("ScreenshotFailed"));
         }
         finally { _capturing = false; }
+    }
+
+    private ScreenRecorder? _recorder;
+    private RecordingIndicator? _recordingIndicator;
+    private bool _recordingBusy;
+
+    private static string RecordingsFolder =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "c0n50le");
+
+    /// <summary>
+    /// Starts or stops recording the screen in front, with the pill on top while it runs. Works over games and the
+    /// desktop alike; the file goes to Videos\c0n50le.
+    /// </summary>
+    private async Task ToggleRecordingAsync()
+    {
+        if (_recordingBusy) return;
+        _recordingBusy = true;
+        try
+        {
+            if (_recorder is { } running)
+            {
+                _recorder = null;
+                _recordingIndicator?.Hide();
+                var path = await running.StopAsync();
+                AppLog.Write($"Registrazione salvata: {path}");
+                Sounds.Play(UiSound.Back);
+                if (IsForeground) ShowToast(Strings.Get("RecordingSaved"));
+                return;
+            }
+            var foreground = NativeWindows.GetForegroundWindow();
+            _recorder = await ScreenRecorder.StartAsync(RecordingsFolder);
+            _recordingIndicator ??= new RecordingIndicator();
+            _recordingIndicator.Show(foreground);
+            AppLog.Write($"Registrazione avviata: {_recorder.Path}");
+            Sounds.Play(UiSound.Confirm);
+        }
+        catch (Exception ex)
+        {
+            _recorder = null;
+            _recordingIndicator?.Hide();
+            AppLog.Write($"Registrazione non riuscita: {ex}");
+            if (IsForeground) ShowToast(Strings.Get("RecordingFailed"));
+        }
+        finally { _recordingBusy = false; }
     }
 
     private void MoveFocus(int moves)

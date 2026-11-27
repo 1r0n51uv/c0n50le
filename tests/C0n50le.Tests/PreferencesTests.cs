@@ -51,7 +51,7 @@ public sealed class PreferencesTests : IDisposable
     {
         Directory.CreateDirectory(_folder);
         File.WriteAllText(File1, """
-            {"theme":"neon","glass":7,"uiScale":9,"keyboardShortcut":"F1","controllerShortcut":3,"language":"de-DE",
+            {"theme":"neon","glass":42,"uiScale":9,"keyboardShortcut":"F1","controllerShortcut":3,"language":"de-DE",
              "manual":[{"name":"No path"},{"path":"C:\\a.exe","source":"steam"}]}
             """);
         var loaded = Preferences.Load(File1);

@@ -201,6 +201,16 @@ public sealed partial class MainWindow : Window
     {
         _exiting = true;
         Strings.Changed -= ApplyTexts;
+        // A recording still running is finished, so the file stays playable.
+        if (_recorder is { } recorder)
+        {
+            _recorder = null;
+            try { Task.Run(recorder.StopAsync).Wait(TimeSpan.FromSeconds(8)); }
+            catch (Exception ex) { AppLog.Write($"Registrazione all'uscita: {ex.Message}"); }
+        }
+        _recordingIndicator?.Close();
+        _recordingIndicator = null;
+        _galleryWatcher?.Dispose();
         _pollTimer?.Stop();
         _sessionTimer?.Stop();
         _backdropTimer?.Stop();

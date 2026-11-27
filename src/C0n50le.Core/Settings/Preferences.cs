@@ -30,6 +30,8 @@ public sealed class Preferences
     public int ControllerShortcut { get; set; } = Input.ControllerButtons.View | Input.ControllerButtons.Y;
     /// <summary>The controller combination that saves a screenshot of the screen in front (0 = off).</summary>
     public int ScreenshotShortcut { get; set; } = Input.ShortcutChoices.DefaultScreenshot;
+    /// <summary>The controller combination that starts and stops a screen recording (0 = off).</summary>
+    public int RecordingShortcut { get; set; } = Input.ShortcutChoices.DefaultRecording;
 
     // Look and sound
     public string Theme { get; set; } = Theming.ThemeCatalog.DefaultId;
@@ -124,6 +126,8 @@ public sealed class Preferences
         if (!Input.ShortcutChoices.IsKnownScreenshot(ScreenshotShortcut)) ScreenshotShortcut = Input.ShortcutChoices.DefaultScreenshot;
         // One combination can't do two things.
         if (ScreenshotShortcut != 0 && (ScreenshotShortcut & ControllerShortcut) == ControllerShortcut) ScreenshotShortcut = 0;
+        if (!Input.ShortcutChoices.IsKnownRecording(RecordingShortcut)) RecordingShortcut = Input.ShortcutChoices.DefaultRecording;
+        if (RecordingShortcut != 0 && RecordingShortcut == ScreenshotShortcut) RecordingShortcut = 0;
         WeatherCity = (WeatherCity ?? "").Trim();
         NewsFeed = (NewsFeed ?? "").Trim();
         if (NewsFeed.Length > 0 && !Widgets.News.IsValidUrl(NewsFeed)) NewsFeed = "";

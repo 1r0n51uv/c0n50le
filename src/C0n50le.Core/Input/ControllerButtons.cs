@@ -103,6 +103,19 @@ public static class ShortcutChoices
 
     public static bool IsKnownScreenshot(int mask) => Screenshot.Contains(mask);
 
+    /// <summary>Combinations that start and stop a screen recording, from the same set as the screenshot; 0 turns it off.</summary>
+    public static IReadOnlyList<int> Recording { get; } =
+    [
+        0,
+        ControllerButtons.View | ControllerButtons.RightShoulder,
+        ControllerButtons.View | ControllerButtons.LeftShoulder,
+        ControllerButtons.View | ControllerButtons.X
+    ];
+
+    public const int DefaultRecording = ControllerButtons.View | ControllerButtons.RightShoulder;
+
+    public static bool IsKnownRecording(int mask) => Recording.Contains(mask);
+
     public static bool IsKnownKeyboard(string? key) => key is not null && Keyboard.Contains(key);
     public static bool IsKnownController(int mask) => Controller.Contains(mask);
 
