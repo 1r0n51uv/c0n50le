@@ -18,7 +18,25 @@ public enum GlassDepth
     Medium = 2,
     Deep = 3,
     /// <summary>Real liquid glass (LiquidGlassWinUI): refraction, dispersion and glare over the live backdrop.</summary>
-    Liquid = 4
+    Liquid = 4,
+    /// <summary>Liquid glass, lighter: denser tint and softer refraction, the most readable.</summary>
+    LiquidSubtle = 5,
+    /// <summary>Liquid glass, deeper: clearer, with stronger refraction, dispersion and glare.</summary>
+    LiquidDeep = 6
+}
+
+/// <summary>The numbers handed to the liquid glass shader for one level (see GlassSurface).</summary>
+public sealed record LiquidPreset(
+    double Blur, double Thickness, double Refraction, double Dispersion, double DispersionRange,
+    double Glare, double GlareOpposite, double Bloom, double Saturation, double Tint, double Brightness)
+{
+    /// <summary>The three liquid levels, dark or light: the tint keeps the text readable over bright artwork.</summary>
+    public static LiquidPreset For(GlassDepth glass, bool dark) => glass switch
+    {
+        GlassDepth.LiquidSubtle => new(3.4, 18, 1.3, 3, 0.4, 35, 25, 0.7, 1.05, dark ? 0.56 : 0.52, dark ? -0.06 : 0.04),
+        GlassDepth.LiquidDeep => new(1.4, 34, 2.0, 8, 0.7, 75, 55, 1.4, 1.25, dark ? 0.28 : 0.26, dark ? -0.02 : 0.02),
+        _ => new(2.4, 26, 1.6, 5, 0.5, 55, 40, 1.0, 1.15, dark ? 0.42 : 0.38, dark ? -0.04 : 0.03)
+    };
 }
 
 /// <summary>
@@ -53,7 +71,7 @@ public sealed record ThemeTokens
     public double TintOpacity { get; init; } = 1;
     public bool IsLight => Appearance == Appearance.Light;
     public bool IsGlass => Glass != GlassDepth.Off;
-    public bool IsLiquid => Glass == GlassDepth.Liquid;
+    public bool IsLiquid => ThemeCatalog.IsLiquid(Glass);
 }
 
 /// <summary>The two appearances and the glass depths.</summary>
@@ -65,7 +83,10 @@ public static class ThemeCatalog
     public const GlassDepth DefaultGlass = GlassDepth.Medium;
 
     public static IReadOnlyList<string> Ids { get; } = [DarkId, LightId];
-    public static IReadOnlyList<GlassDepth> Depths { get; } = [GlassDepth.Off, GlassDepth.Subtle, GlassDepth.Medium, GlassDepth.Deep, GlassDepth.Liquid];
+    public static IReadOnlyList<GlassDepth> Depths { get; } = 
+        [GlassDepth.Off, GlassDepth.Subtle, GlassDepth.Medium, GlassDepth.Deep, GlassDepth.LiquidSubtle, GlassDepth.Liquid, GlassDepth.LiquidDeep];
+
+    public static bool IsLiquid(GlassDepth glass) => glass is GlassDepth.Liquid or GlassDepth.LiquidSubtle or GlassDepth.LiquidDeep;
 
     public static string Normalize(string? id) => string.Equals(id, LightId, StringComparison.OrdinalIgnoreCase) ? LightId : DarkId;
 
@@ -81,7 +102,7 @@ public static class ThemeCatalog
         GlassDepth.Subtle => 0xA6,
         GlassDepth.Medium => 0x70,
         // Liquid: the fallback acrylic is as dense as Medium, matching the tint inside the liquid shader.
-        GlassDepth.Liquid => 0x70,
+        _ when IsLiquid(glass) => 0x70,
         _ => 0x42
     };
 
@@ -91,7 +112,7 @@ public static class ThemeCatalog
         GlassDepth.Subtle => 0.35,
         GlassDepth.Medium => 0.6,
         // The liquid shader draws its own glare and rim: only a hint of sheen on top.
-        GlassDepth.Liquid => 0.25,
+        _ when IsLiquid(glass) => 0.25,
         _ => 1
     };
 
@@ -100,7 +121,7 @@ public static class ThemeCatalog
         GlassDepth.Off => 1,
         GlassDepth.Subtle => 0.70,
         GlassDepth.Medium => 0.45,
-        GlassDepth.Liquid => 0.45,
+        _ when IsLiquid(glass) => 0.45,
         _ => 0.23
     };
 

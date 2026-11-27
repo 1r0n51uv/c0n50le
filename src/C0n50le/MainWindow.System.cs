@@ -381,7 +381,8 @@ public sealed partial class MainWindow
         });
         var depths = ThemeCatalog.Depths;
         var depthNames = depths.Select(depth => Strings.Get("Glass_" + depth)).ToArray();
-        Choice("LiquidGlass", "LiquidGlassBody", depthNames[Math.Clamp(_prefs.Glass, 0, depths.Count - 1)], depthNames, _prefs.Glass, index =>
+        var currentDepth = Math.Max(0, depths.ToList().IndexOf(ThemeCatalog.NormalizeGlass(_prefs.Glass)));
+        Choice("LiquidGlass", "LiquidGlassBody", depthNames[currentDepth], depthNames, currentDepth, index =>
         {
             _prefs.Glass = (int)depths[index];
             ApplyTheme();

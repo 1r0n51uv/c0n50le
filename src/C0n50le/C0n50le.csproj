@@ -33,7 +33,7 @@
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
-    <Content Include="Assets\Fonts\InterVariable.ttf;Assets\Fonts\Inter-OFL.txt;Assets\c0n50le.ico;Assets\logo.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Fonts\InterVariable.ttf;Assets\Fonts\Inter-OFL.txt;Assets\c0n50le.ico;Assets\logo.png;Assets\home-default.jpg" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="Assets\Sounds\*.wav" LogicalName="C0n50le.Sounds.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

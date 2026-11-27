@@ -1,3 +1,4 @@
+using C0n50le.Core.Theming;
 using LiquidGlassWinUI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -14,6 +15,7 @@ public sealed class GlassSurface : Grid
 {
     private static readonly List<WeakReference<GlassSurface>> Live = [];
     private static bool _liquid, _dark = true;
+    private static GlassDepth _level = GlassDepth.Liquid;
 
     /// <summary>Raised once when the liquid effect failed and the panels went back to acrylic.</summary>
     public static event Action<string>? LiquidFailed;
@@ -37,9 +39,10 @@ public sealed class GlassSurface : Grid
     }
 
     /// <summary>Switches every panel between acrylic and liquid glass.</summary>
-    public static void Use(bool liquid, bool dark)
+    public static void Use(GlassDepth glass, bool dark)
     {
-        _liquid = liquid && !IsLiquidBroken;
+        _level = glass;
+        _liquid = ThemeCatalog.IsLiquid(glass) && !IsLiquidBroken;
         _dark = dark;
         List<GlassSurface> surfaces;
         lock (Live)
@@ -57,24 +60,25 @@ public sealed class GlassSurface : Grid
             Background = ThemeManager.Brush("MaterialBrush");
             return;
         }
+        var preset = LiquidPreset.For(_level, _dark);
         Background = new LiquidGlassBrush
         {
-            BlurAmount = 2.4,
-            RefThickness = 26,
-            RefFactor = 1.6,
-            RefDispersion = 5,
-            DispersionRange = 0.5,
-            GlareFactor = 55,
-            GlareOppositeFactor = 40,
+            BlurAmount = preset.Blur,
+            RefThickness = preset.Thickness,
+            RefFactor = preset.Refraction,
+            RefDispersion = preset.Dispersion,
+            DispersionRange = preset.DispersionRange,
+            GlareFactor = preset.Glare,
+            GlareOppositeFactor = preset.GlareOpposite,
             GlareAngle = -45,
-            BloomAmount = 1,
-            Saturation = 1.15,
+            BloomAmount = preset.Bloom,
+            Saturation = preset.Saturation,
             // A dark (or light) tint keeps white (or black) text readable over bright artwork.
             TintR = _dark ? 24 : 250,
             TintG = _dark ? 24 : 250,
             TintB = _dark ? 28 : 252,
-            TintA = _dark ? 0.42 : 0.38,
-            Brightness = _dark ? -0.04 : 0.03,
+            TintA = preset.Tint,
+            Brightness = preset.Brightness,
             ShapeRoundness = 5
         };
         Shape();
@@ -93,7 +97,7 @@ public sealed class GlassSurface : Grid
     {
         if (IsLiquidBroken || LiquidGlassBrush.LastError is not { Length: > 0 } error) return;
         IsLiquidBroken = true;
-        Use(false, _dark);
+        Use(GlassDepth.Medium, _dark);
         LiquidFailed?.Invoke(error.Split('\n')[0]);
     }
 }

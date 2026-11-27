@@ -71,7 +71,7 @@ public static class ThemeManager
         var side = (LinearGradientBrush)Application.Current.Resources["ShelfSideBrush"];
         SetStops(side, backdrop.WithAlpha(theme.IsLight ? (byte)0xC8 : (byte)0xB3), backdrop.WithAlpha(0x4D), backdrop.WithAlpha(0));
         Ambient();
-        GlassSurface.Use(theme.IsLiquid, !theme.IsLight);
+        GlassSurface.Use(theme.Glass, !theme.IsLight);
     }
 
     private static void Ambient()

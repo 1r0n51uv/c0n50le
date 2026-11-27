@@ -272,18 +272,20 @@ public sealed partial class MainWindow
         if (Home.IsAppBarExpanded == expanded) return;
         Home.IsAppBarExpanded = expanded;
         // Each side opens to the width of its text (capped, so the bar never runs across the screen) and fades in.
-        AnimateDetail(InputDetail, InputDetailText, expanded, 230);
-        AnimateDetail(DisplayDetail, DisplayDetailText, expanded, 250);
+        AnimateDetail(InputDetail, InputDetailText, expanded, 380);
+        AnimateDetail(DisplayDetail, DisplayDetailText, expanded, 620);
     }
 
     private void AnimateDetail(FrameworkElement host, TextBlock text, bool open, double maxWidth)
     {
-        text.MaxWidth = maxWidth;
+        // The margin sits outside the text's own width: leave room for it, or the last letters are cut by the host.
+        var margin = text.Margin.Left + text.Margin.Right;
+        text.MaxWidth = maxWidth - margin;
         text.ClearValue(FrameworkElement.WidthProperty);
-        text.Measure(new Windows.Foundation.Size(maxWidth, double.PositiveInfinity));
-        var target = open ? Math.Ceiling(Math.Min(maxWidth, text.DesiredSize.Width)) : 0;
+        text.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+        var target = open ? Math.Ceiling(Math.Min(maxWidth, text.DesiredSize.Width)) + 1 : 0;
         // The text keeps its open width while the host slides, so it is revealed instead of re-trimmed on every frame.
-        if (open) text.Width = target;
+        if (open) text.Width = Math.Max(0, target - margin);
         var duration = new Duration(TimeSpan.FromMilliseconds(Motion.Enabled(Motion.Reduce) ? 280 : 0));
         var ease = new Microsoft.UI.Xaml.Media.Animation.CubicEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut };
         var width = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation

@@ -18,7 +18,7 @@ public static class DisplayText
 
     public static string Label(string name, int width, int height, double hertz)
     {
-        var parts = new List<string> { name.Length > 28 ? name[..27].TrimEnd() + "…" : name };
+        var parts = new List<string> { name.Length > 40 ? name[..39].TrimEnd() + "…" : name };
         if (width > 0 && height > 0) parts.Add(Resolution(width, height));
         if (hertz >= 1) parts.Add(Math.Round(hertz).ToString("0", CultureInfo.InvariantCulture) + " Hz");
         return string.Join(" · ", parts);

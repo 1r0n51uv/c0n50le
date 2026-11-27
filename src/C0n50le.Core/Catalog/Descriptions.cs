@@ -67,6 +67,93 @@ public static class DescriptionParser
             ? text : "";
     }
 
+    /// <summary>The title of the same article in another language, from a Wikipedia langlinks query.</summary>
+    public static string? ParseLangLink(string json, string language)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("query", out var query) || !query.TryGetProperty("pages", out var pages)) return null;
+        foreach (var page in pages.EnumerateObject())
+        {
+            if (!page.Value.TryGetProperty("langlinks", out var links) || links.ValueKind != JsonValueKind.Array) continue;
+            foreach (var link in links.EnumerateArray())
+                if (link.TryGetProperty("lang", out var lang) && lang.GetString() == language
+                    && link.TryGetProperty("*", out var title) && title.GetString() is { Length: > 0 } name) return name;
+        }
+        return null;
+    }
+
+    private static readonly Regex Edition = new(
+        @"\s*[-–:]?\s*(?:standard|deluxe|premium|gold|ultimate|complete|definitive|game of the year|goty)\s+edition\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// The Microsoft Store (Xbox and PC) product whose name is the title, from an autosuggest answer. The plain game wins
+    /// over its editions, which are taken only when nothing else matches.
+    /// </summary>
+    public static string? ParseStoreSuggest(string json, string title)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("Results", out var results) || results.ValueKind != JsonValueKind.Array) return null;
+        var wanted = LaunchBoxParser.Normalize(title);
+        if (wanted.Length == 0) return null;
+        string? edition = null;
+        foreach (var family in results.EnumerateArray())
+        {
+            if (!family.TryGetProperty("Products", out var products) || products.ValueKind != JsonValueKind.Array) continue;
+            foreach (var product in products.EnumerateArray())
+            {
+                var name = product.TryGetProperty("Title", out var value) ? value.GetString() ?? "" : "";
+                var id = product.TryGetProperty("ProductId", out var productId) ? productId.GetString() ?? "" : "";
+                if (id.Length == 0) continue;
+                if (LaunchBoxParser.Normalize(name) == wanted) return id;
+                if (edition is null && LaunchBoxParser.Normalize(Edition.Replace(name, "")) == wanted) edition = id;
+            }
+        }
+        return edition;
+    }
+
+    /// <summary>A Microsoft Store product's description: the short one, or the first paragraph of the long one.</summary>
+    public static string ParseStoreProduct(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("Products", out var products) || products.ValueKind != JsonValueKind.Array) return "";
+        foreach (var product in products.EnumerateArray())
+        {
+            if (!product.TryGetProperty("LocalizedProperties", out var localized) || localized.ValueKind != JsonValueKind.Array) continue;
+            foreach (var entry in localized.EnumerateArray())
+            {
+                var text = entry.TryGetProperty("ShortDescription", out var shortText) ? Plain(shortText.GetString() ?? "") : "";
+                if (text.Length < 40 && entry.TryGetProperty("ProductDescription", out var longText))
+                {
+                    var paragraph = (longText.GetString() ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .FirstOrDefault(part => part.Length >= 40) ?? "";
+                    text = Plain(paragraph);
+                }
+                if (text.Length > 0) return text.Length > 700 ? text[..text.LastIndexOf(' ', 700)].TrimEnd(',', ';', ' ') + "…" : text;
+            }
+        }
+        return "";
+    }
+
+    private static readonly HashSet<string> ItalianWords =
+        ["il", "lo", "la", "gli", "le", "di", "del", "della", "dei", "delle", "che", "e", "è", "un", "una", "per", "con", "nel", "nella", "sono", "suo", "sua", "dal", "alla", "al", "ad", "tra", "fra", "più", "anche", "come", "questo", "ogni"];
+
+    private static readonly HashSet<string> EnglishWords =
+        ["the", "of", "and", "to", "in", "is", "a", "an", "with", "for", "your", "you", "on", "from", "that", "this", "as", "are", "its", "by"];
+
+    /// <summary>
+    /// Whether a text is Italian, by its common short words. Steam and the Store fall back to English without saying so,
+    /// so their answers are checked before they are shown as Italian.
+    /// </summary>
+    public static bool LooksItalian(string text)
+    {
+        var words = Regex.Matches(text.ToLowerInvariant(), @"\p{L}+").Select(match => match.Value).ToList();
+        if (words.Count < 6) return false;
+        var italian = words.Count(ItalianWords.Contains);
+        var english = words.Count(EnglishWords.Contains);
+        return italian >= 3 && italian > english * 2;
+    }
+
     internal static string Plain(string text)
     {
         var withoutTags = Regex.Replace(text, "<[^>]+>", " ");
@@ -118,9 +205,12 @@ public sealed class DescriptionFinder
         }
         catch (Exception ex) when (Recoverable(ex, token)) { }
 
-        // Steam may silently return English when Italian is requested, so it is not an Italian fallback.
+        // Not found in the local Wikipedia by name: find the English article and follow its link to this language.
+        if (wiki != "en" && await FromEnglishWikipediaAsync(title, wiki, language, token) is { } linked) return linked;
+
+        // Steam and the Store may silently answer in English when Italian is asked: their text is checked first.
+        bool Fits(string text) => text.Length > 0 && (wiki == "en" || DescriptionParser.LooksItalian(text));
         token.ThrowIfCancellationRequested();
-        if (wiki != "en") return new();
         try
         {
             var appId = steamId ?? DescriptionParser.ParseSteamSearch(await _client.GetStringAsync(
@@ -128,14 +218,51 @@ public sealed class DescriptionFinder
             if (appId is { } id)
             {
                 var json = await _client.GetStringAsync(
-                    $"https://store.steampowered.com/api/appdetails?appids={id}&l={steam}", token);
+                    $"https://store.steampowered.com/api/appdetails?appids={id}&l={steam}&cc={country}", token);
                 var text = DescriptionParser.ParseSteamDetails(json, id);
-                if (text.Length > 0) return new(text, $"https://store.steampowered.com/app/{id}/", "Steam");
+                if (Fits(text)) return new(text, $"https://store.steampowered.com/app/{id}/", "Steam");
+            }
+        }
+        catch (Exception ex) when (Recoverable(ex, token)) { }
+
+        // The Microsoft Store has Xbox and PC games, also ones that are not on Steam.
+        token.ThrowIfCancellationRequested();
+        try
+        {
+            var locale = wiki == "it" ? "it-it" : "en-us";
+            var suggest = await _client.GetStringAsync(
+                $"https://displaycatalog.mp.microsoft.com/v7.0/productFamilies/autosuggest?market={country}&languages={locale}&productFamilyNames=Games&query={Uri.EscapeDataString(title)}", token);
+            if (DescriptionParser.ParseStoreSuggest(suggest, title) is { } product)
+            {
+                var json = await _client.GetStringAsync(
+                    $"https://displaycatalog.mp.microsoft.com/v7.0/products?bigIds={product}&market={country}&languages={locale}", token);
+                var text = DescriptionParser.ParseStoreProduct(json);
+                if (Fits(text)) return new(text, $"https://www.xbox.com/{locale}/games/store/p/{product}", "Microsoft Store");
             }
         }
         catch (Exception ex) when (Recoverable(ex, token)) { }
         token.ThrowIfCancellationRequested();
         return new();
+    }
+
+    private async Task<LocalizedDescription?> FromEnglishWikipediaAsync(string title, string wiki, string language, CancellationToken token)
+    {
+        try
+        {
+            var search = await _client.GetStringAsync(
+                $"https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=10&srsearch={Uri.EscapeDataString(title + " video game")}", token);
+            if (DescriptionParser.ParseWikipediaSearch(search, title) is not { } english) return null;
+            var links = await _client.GetStringAsync(
+                $"https://en.wikipedia.org/w/api.php?action=query&prop=langlinks&format=json&redirects=1&lllang={wiki}&titles={Uri.EscapeDataString(english)}", token);
+            if (DescriptionParser.ParseLangLink(links, wiki) is not { } page) return null;
+            var summary = await _client.GetStringAsync(
+                $"https://{wiki}.wikipedia.org/api/rest_v1/page/summary/{Uri.EscapeDataString(page.Replace(' ', '_'))}", token);
+            var text = DescriptionParser.ParseWikipediaSummary(summary, language);
+            return text.Length > 0
+                ? new(text, $"https://{wiki}.wikipedia.org/wiki/{Uri.EscapeDataString(page.Replace(' ', '_'))}", "Wikipedia · CC BY-SA")
+                : null;
+        }
+        catch (Exception ex) when (Recoverable(ex, token)) { return null; }
     }
 
     private static bool Recoverable(Exception ex, CancellationToken token) => !token.IsCancellationRequested

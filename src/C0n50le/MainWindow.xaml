@@ -78,8 +78,11 @@
                             <ContentControl x:Name="NewsWidget" Grid.Row="1" Style="{StaticResource GlassPanel}" CornerRadius="30" Padding="28,22"/>
                             <Grid x:Name="GalleryWidget" Grid.Row="2" CornerRadius="30" MinHeight="140" Background="{StaticResource ControlBrush}">
                                 <Border x:Name="GallerySkeleton" Background="{StaticResource GlyphCircleBrush}" Visibility="Collapsed"/>
-                                <Image x:Name="GalleryA" Stretch="UniformToFill" Opacity="0"/>
-                                <Image x:Name="GalleryB" Stretch="UniformToFill" Opacity="0"/>
+                                <!-- Up to four pictures; each opens a large preview while the pointer or the focus is on it. -->
+                                <Grid x:Name="GalleryGrid" RowSpacing="6" ColumnSpacing="6">
+                                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                </Grid>
                                 <TextBlock x:Name="GalleryMessage" Style="{StaticResource Caption}" FontSize="21" TextWrapping="Wrap"
                                            TextAlignment="Center" HorizontalAlignment="Center" Margin="28,0"/>
                             </Grid>
@@ -127,6 +130,12 @@
                     </StackPanel>
                 </ContentControl>
 
+                <!-- The gallery picture under the pointer or the focus, large, beside the widgets. -->
+                <ContentControl x:Name="GalleryPreview" Style="{StaticResource GlassPanel}" CornerRadius="40" Padding="10"
+                                Width="760" Height="428" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,150,580,0"
+                                Visibility="Collapsed" IsHitTestVisible="False">
+                    <Border CornerRadius="30"><Border.Background><ImageBrush x:Name="GalleryPreviewBrush" Stretch="UniformToFill"/></Border.Background></Border>
+                </ContentControl>
                 <!-- Controller hints, only in controller mode. -->
                 <StackPanel x:Name="HomeHints" Orientation="Horizontal" Spacing="30" VerticalAlignment="Bottom" HorizontalAlignment="Left"
                             Margin="90,0,0,40" Visibility="{x:Bind Home.IsControllerMode, Mode=OneWay}">

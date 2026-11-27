@@ -7,7 +7,10 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace C0n50le;
@@ -23,7 +26,8 @@ public sealed partial class MainWindow
     private CancellationTokenSource? _widgetRequest;
     private Gallery _gallery = new([]);
     private string? _galleryLoaded;
-    private bool _galleryFront;
+    private string? _previewing;
+    private int _galleryRequest;
 
     private static HttpClient CreateWidgetClient()
     {
@@ -43,9 +47,7 @@ public sealed partial class MainWindow
         _galleryTimer = DispatcherQueue.CreateTimer();
         _galleryTimer.Interval = GalleryInterval;
         _galleryTimer.Tick += (_, _) => ShowNextPicture();
-        ElementCompositionPreview.GetElementVisual(GalleryA).Opacity = 0;
-        ElementCompositionPreview.GetElementVisual(GalleryB).Opacity = 0;
-        GalleryA.Opacity = GalleryB.Opacity = 1;
+        ElementCompositionPreview.GetElementVisual(GalleryGrid).Opacity = 0;
         // ApplyTexts, right after, shows them and fetches the first time.
     }
 
@@ -292,33 +294,106 @@ public sealed partial class MainWindow
         if (_gallery.Count == 0) HideGallerySkeleton();
         if (_gallery.Count == 0)
         {
-            Motion.Fade(GalleryA, 0, 300, _prefs.ReduceMotion);
-            Motion.Fade(GalleryB, 0, 300, _prefs.ReduceMotion);
+            GalleryGrid.Children.Clear();
+            HideGalleryPreview();
         }
         ShowNextPicture();
     }
 
-    /// <summary>Cross-fades to the next picture; a file that will not open is skipped at the next turn.</summary>
+    /// <summary>
+    /// Shows the next pictures, up to four, laid out by how many there are; the set fades in once they have opened. It waits
+    /// while one of them is being previewed.
+    /// </summary>
     private void ShowNextPicture()
     {
-        if (!_prefs.ShowWidgets || !_prefs.ShowGallery || !AppWindow.IsVisible || HomePage.Visibility != Visibility.Visible || _gallery.Next() is not { } path) return;
-        var width = (int)Math.Ceiling(Math.Max(460, GalleryWidget.ActualWidth) * Math.Max(1, Root.XamlRoot?.RasterizationScale ?? 1));
-        BitmapImage picture;
-        try { picture = new BitmapImage { DecodePixelWidth = width, UriSource = new Uri(path) }; }
-        catch (Exception ex) when (ex is UriFormatException or ArgumentException) { return; }
-        var front = _galleryFront ? GalleryA : GalleryB;
-        var back = _galleryFront ? GalleryB : GalleryA;
-        _galleryFront = !_galleryFront;
-        picture.ImageOpened += (_, _) =>
+        if (!_prefs.ShowWidgets || !_prefs.ShowGallery || !AppWindow.IsVisible || HomePage.Visibility != Visibility.Visible) return;
+        if (_previewing is not null || IsInside(FocusManager.GetFocusedElement(Root.XamlRoot) as DependencyObject ?? Root, GalleryGrid)) return;
+        var batch = _gallery.NextBatch();
+        if (batch.Count == 0) return;
+        var request = ++_galleryRequest;
+        var cells = Gallery.Layout(batch.Count);
+        var scale = Math.Max(1, Root.XamlRoot?.RasterizationScale ?? 1);
+        var tiles = new List<Button>();
+        var pending = batch.Count;
+        void Opened()
         {
+            if (--pending > 0 || request != _galleryRequest) return;
             HideGallerySkeleton();
-            Motion.Fade(front, 1, 700, _prefs.ReduceMotion);
-            Motion.Fade(back, 0, 700, _prefs.ReduceMotion);
-        };
-        picture.ImageFailed += (_, args) => AppLog.Write($"Galleria: {args.ErrorMessage}");
-        front.Source = picture;
+            Motion.Fade(GalleryGrid, 1, 500, _prefs.ReduceMotion);
+        }
+        for (var index = 0; index < batch.Count; index++)
+        {
+            var path = batch[index];
+            var cell = cells[index];
+            var wide = cell.ColumnSpan == 2 ? 460 : 230;
+            BitmapImage picture;
+            try { picture = new BitmapImage { DecodePixelWidth = (int)Math.Ceiling(wide * scale), UriSource = new Uri(path) }; }
+            catch (Exception ex) when (ex is UriFormatException or ArgumentException) { Opened(); continue; }
+            picture.ImageOpened += (_, _) => Opened();
+            picture.ImageFailed += (_, args) => { AppLog.Write($"Galleria: {args.ErrorMessage}"); Opened(); };
+            tiles.Add(GalleryTile(path, picture, cell, batch.Count == 1 ? 30 : 18));
+        }
+        // The old set fades out first, so the widget never shows half of each.
+        Motion.Fade(GalleryGrid, 0, 250, _prefs.ReduceMotion);
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, async () =>
+        {
+            if (!_prefs.ReduceMotion) await Task.Delay(260);
+            if (request != _galleryRequest) return;
+            GalleryGrid.Children.Clear();
+            foreach (var tile in tiles) GalleryGrid.Children.Add(tile);
+        });
     }
 
+    private Button GalleryTile(string path, BitmapImage picture, GalleryCell cell, double corner)
+    {
+        var image = new Border
+        {
+            CornerRadius = new CornerRadius(corner),
+            Background = new ImageBrush { ImageSource = picture, Stretch = Stretch.UniformToFill }
+        };
+        var tile = new Button
+        {
+            Style = ThemeManager.Style("TvCard"), Width = double.NaN, Height = double.NaN, CornerRadius = new CornerRadius(corner),
+            HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
+            Content = image, BorderThickness = new Thickness(0)
+        };
+        AutomationProperties.SetName(tile, Path.GetFileNameWithoutExtension(path));
+        Grid.SetRow(tile, cell.Row);
+        Grid.SetColumn(tile, cell.Column);
+        Grid.SetRowSpan(tile, cell.RowSpan);
+        Grid.SetColumnSpan(tile, cell.ColumnSpan);
+        tile.PointerEntered += (_, _) => ShowGalleryPreview(path, picture);
+        tile.PointerExited += (_, _) => HideGalleryPreview(path);
+        tile.GotFocus += (_, _) => ShowGalleryPreview(path, picture);
+        tile.LostFocus += (_, _) => HideGalleryPreview(path);
+        return tile;
+    }
+
+    /// <summary>The picture large beside the widgets; the rotation waits until it closes.</summary>
+    private void ShowGalleryPreview(string path, BitmapImage picture)
+    {
+        _previewing = path;
+        GalleryPreviewBrush.ImageSource = new BitmapImage
+        {
+            DecodePixelWidth = (int)Math.Ceiling(760 * Math.Max(1, Root.XamlRoot?.RasterizationScale ?? 1)), UriSource = picture.UriSource
+        };
+        if (GalleryPreview.Visibility == Visibility.Visible) return;
+        ElementCompositionPreview.GetElementVisual(GalleryPreview).Opacity = 0;
+        GalleryPreview.Visibility = Visibility.Visible;
+        Motion.Fade(GalleryPreview, 1, 220, _prefs.ReduceMotion);
+    }
+
+    /// <summary>Closes the preview, if it still shows <paramref name="path"/> (another picture may have taken its place).</summary>
+    private void HideGalleryPreview(string? path = null)
+    {
+        if (path is not null && _previewing != path) return;
+        _previewing = null;
+        GalleryPreview.Visibility = Visibility.Collapsed;
+        GalleryPreviewBrush.ImageSource = null;
+        _galleryTimer?.Stop();
+        _galleryTimer?.Start();
+    }
     // ───────── Pieces ─────────
 
     private static TextBlock WidgetHeader(string text) => new()

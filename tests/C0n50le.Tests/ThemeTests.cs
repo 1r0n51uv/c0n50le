@@ -34,14 +34,28 @@ public sealed class ThemeTests
     }
 
     [Fact]
+    public void Liquid_levels_get_clearer_and_stronger_with_depth()
+    {
+        foreach (var dark in new[] { true, false })
+        {
+            var levels = new[] { GlassDepth.LiquidSubtle, GlassDepth.Liquid, GlassDepth.LiquidDeep }.Select(level => LiquidPreset.For(level, dark)).ToList();
+            Assert.Equal(levels.Select(level => level.Tint).OrderByDescending(tint => tint), levels.Select(level => level.Tint));
+            Assert.Equal(levels.Select(level => level.Refraction).OrderBy(value => value), levels.Select(level => level.Refraction));
+            Assert.Equal(levels.Select(level => level.Glare).OrderBy(value => value), levels.Select(level => level.Glare));
+        }
+        Assert.All(ThemeCatalog.Depths.Where(ThemeCatalog.IsLiquid), level => Assert.True(ThemeCatalog.Get("dark", level).IsLiquid));
+        Assert.Equal(GlassDepth.LiquidDeep, ThemeCatalog.NormalizeGlass(6));
+    }
+
+    [Fact]
     public void Glass_gets_more_see_through_with_depth()
     {
         foreach (var id in ThemeCatalog.Ids)
         {
-            var alphas = ThemeCatalog.Depths.Where(depth => depth != GlassDepth.Liquid).Select(depth => ThemeCatalog.Get(id, depth).Material.A).ToList();
+            var alphas = ThemeCatalog.Depths.Where(depth => !ThemeCatalog.IsLiquid(depth)).Select(depth => ThemeCatalog.Get(id, depth).Material.A).ToList();
             Assert.Equal(alphas.OrderByDescending(alpha => alpha), alphas);
             // Liquid glass draws its own glare, so only the acrylic depths grow their sheen.
-            var sheens = ThemeCatalog.Depths.Where(depth => depth != GlassDepth.Liquid).Select(depth => ThemeCatalog.Get(id, depth).Sheen).ToList();
+            var sheens = ThemeCatalog.Depths.Where(depth => !ThemeCatalog.IsLiquid(depth)).Select(depth => ThemeCatalog.Get(id, depth).Sheen).ToList();
             Assert.Equal(sheens.OrderBy(sheen => sheen), sheens);
             Assert.Equal(0, ThemeCatalog.Get(id, GlassDepth.Off).Sheen);
             Assert.False(ThemeCatalog.Get(id, GlassDepth.Off).IsGlass);
@@ -136,6 +150,9 @@ public sealed class DisplayTextTests
         Assert.Equal(expected, Core.Theming.DisplayText.Label("LG TV SSCR2", width, height, hertz));
 
     [Fact]
-    public void Long_names_are_cut() =>
-        Assert.StartsWith("A very long monitor name th…", Core.Theming.DisplayText.Label("A very long monitor name that goes on", 1920, 1080, 60));
+    public void Long_names_are_cut()
+    {
+        Assert.StartsWith("Samsung Odyssey Neo G9 49 inch curved g…", Core.Theming.DisplayText.Label("Samsung Odyssey Neo G9 49 inch curved gaming monitor", 1920, 1080, 60));
+        Assert.StartsWith("LG OLED65C3 TV SSCR2 ·", Core.Theming.DisplayText.Label("LG OLED65C3 TV SSCR2", 3840, 2160, 120));
+    }
 }

@@ -140,10 +140,19 @@ public sealed partial class MainWindow
 
     private Tile ActionTile(string glyph, string label, string description, Action action)
     {
+        // The same glass as the other panels (liquid when that level is chosen), with the icon on top.
+        var content = new Grid();
+        content.Children.Add(new GlassSurface { CornerRadius = new CornerRadius(30) });
+        content.Children.Add(new Border { Background = ThemeManager.Brush("SheenBrush"), CornerRadius = new CornerRadius(30), IsHitTestVisible = false });
+        content.Children.Add(new FontIcon { Glyph = glyph, FontSize = 52, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        content.Children.Add(new Border
+        {
+            BorderBrush = ThemeManager.Brush("RimBrush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(30), IsHitTestVisible = false
+        });
         var card = new Button
         {
-            Style = ThemeManager.Style("TvCard"), Background = ThemeManager.Brush("MaterialBrush"),
-            Content = new FontIcon { Glyph = glyph, FontSize = 52, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+            Style = ThemeManager.Style("TvCard"), Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), Content = content,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch
         };
         AutomationProperties.SetName(card, label);
         var tile = new Tile(card, null);
@@ -312,8 +321,15 @@ public sealed partial class MainWindow
         Home.HeroTitle = title;
         Home.HeroDetails = "";
         Home.HeroDescription = description;
+        // Their own default picture behind them instead of the last game's.
+        _heroBackgrounds = [];
+        _backdropTimer?.Stop();
+        ShowBackdrop(DefaultBackdrop);
+        _ = UpdatePaletteAsync(DefaultBackdrop);
         Motion.Entrance(Hero, _prefs.ReduceMotion);
     }
+
+    private static readonly string DefaultBackdrop = Path.Combine(AppContext.BaseDirectory, "Assets", "home-default.jpg");
 
     private void FocusSelection()
     {

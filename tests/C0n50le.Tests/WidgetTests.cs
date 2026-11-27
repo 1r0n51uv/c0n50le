@@ -132,4 +132,31 @@ public sealed class WidgetTests
         Assert.Equal("", preferences.GalleryFolder);
         Assert.True(new Preferences().ShowWidgets);
     }
+
+    [Fact]
+    public void Gallery_shows_up_to_four_different_pictures_at_once()
+    {
+        var gallery = new Gallery(["a", "b", "c", "d", "e", "f"]);
+        Assert.Equal(["a", "b", "c", "d"], gallery.NextBatch());
+        Assert.Equal(["e", "f", "a", "b"], gallery.NextBatch());
+        Assert.Equal(["x", "y"], new Gallery(["x", "y"]).NextBatch());
+        Assert.Empty(new Gallery([]).NextBatch());
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Gallery_layout_fills_the_two_by_two_grid_without_overlaps(int count)
+    {
+        var cells = Gallery.Layout(count);
+        Assert.Equal(count, cells.Count);
+        var covered = cells.SelectMany(cell => from row in Enumerable.Range(cell.Row, cell.RowSpan)
+                                               from column in Enumerable.Range(cell.Column, cell.ColumnSpan)
+                                               select (row, column)).ToList();
+        Assert.Equal(4, covered.Count);
+        Assert.Equal(4, covered.Distinct().Count());
+        Assert.All(covered, place => Assert.True(place.row is >= 0 and < 2 && place.column is >= 0 and < 2));
+    }
 }
