@@ -42,6 +42,10 @@ public sealed class ThemeTests
             Assert.Equal(levels.Select(level => level.Tint).OrderByDescending(tint => tint), levels.Select(level => level.Tint));
             Assert.Equal(levels.Select(level => level.Refraction).OrderBy(value => value), levels.Select(level => level.Refraction));
             Assert.Equal(levels.Select(level => level.Glare).OrderBy(value => value), levels.Select(level => level.Glare));
+            // Lighter levels are more frosted; the deeper ones let more of the sharp backdrop through.
+            Assert.Equal(levels.Select(level => level.Blur).OrderByDescending(value => value), levels.Select(level => level.Blur));
+            Assert.Equal(levels.Select(level => level.Bloom).OrderBy(value => value), levels.Select(level => level.Bloom));
+            Assert.All(levels, level => Assert.True(level.Bloom < 0.5 && level.ForPopup().Bloom == 0 && level.ForPopup().Blur >= level.Blur));
         }
         Assert.All(ThemeCatalog.Depths.Where(ThemeCatalog.IsLiquid), level => Assert.True(ThemeCatalog.Get("dark", level).IsLiquid));
         Assert.Equal(GlassDepth.LiquidDeep, ThemeCatalog.NormalizeGlass(6));

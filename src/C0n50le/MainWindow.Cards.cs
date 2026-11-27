@@ -24,7 +24,7 @@ public sealed partial class MainWindow
 
     private bool MenuOpen => MenuLayer.Visibility == Visibility.Visible;
     private bool AlertOpen => AlertLayer.Visibility == Visibility.Visible;
-    private bool IsOverlayOpen => MenuOpen || AlertOpen || TourVisible;
+    private bool IsOverlayOpen => MenuOpen || AlertOpen || TourVisible || ViewerOpen;
 
     /// <summary>One entry of a context menu. A null label is a divider.</summary>
     private sealed record MenuEntry(string? Label, string Glyph = "", bool Checked = false, Func<Task>? Action = null)

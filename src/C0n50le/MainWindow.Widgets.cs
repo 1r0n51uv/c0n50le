@@ -1,4 +1,5 @@
 using System.Globalization;
+using C0n50le.Core.Audio;
 using C0n50le.Core.Localization;
 using C0n50le.Core.Widgets;
 using C0n50le.Services;
@@ -307,7 +308,7 @@ public sealed partial class MainWindow
     private void ShowNextPicture()
     {
         if (!_prefs.ShowWidgets || !_prefs.ShowGallery || !AppWindow.IsVisible || HomePage.Visibility != Visibility.Visible) return;
-        if (_previewing is not null || IsInside(FocusManager.GetFocusedElement(Root.XamlRoot) as DependencyObject ?? Root, GalleryGrid)) return;
+        if (ViewerOpen || _previewing is not null || IsInside(FocusManager.GetFocusedElement(Root.XamlRoot) as DependencyObject ?? Root, GalleryGrid)) return;
         var batch = _gallery.NextBatch();
         if (batch.Count == 0) return;
         var request = ++_galleryRequest;
@@ -363,11 +364,110 @@ public sealed partial class MainWindow
         Grid.SetColumn(tile, cell.Column);
         Grid.SetRowSpan(tile, cell.RowSpan);
         Grid.SetColumnSpan(tile, cell.ColumnSpan);
+        tile.Click += (_, _) =>
+        {
+            Sounds.Play(UiSound.Open);
+            OpenGalleryViewer(path);
+        };
         tile.PointerEntered += (_, _) => ShowGalleryPreview(path, picture);
         tile.PointerExited += (_, _) => HideGalleryPreview(path);
         tile.GotFocus += (_, _) => ShowGalleryPreview(path, picture);
         tile.LostFocus += (_, _) => HideGalleryPreview(path);
         return tile;
+    }
+
+    // ───────── Gallery viewer ─────────
+
+    private int _viewerIndex;
+
+    private bool ViewerOpen => GalleryViewer.Visibility == Visibility.Visible;
+
+    /// <summary>Every picture of the folder, one at a time over the whole screen, starting from the chosen one.</summary>
+    private void OpenGalleryViewer(string path)
+    {
+        if (_gallery.Count == 0) return;
+        HideGalleryPreview();
+        _viewerIndex = Math.Max(0, _gallery.IndexOf(path));
+        GalleryViewer.Visibility = Visibility.Visible;
+        ElementCompositionPreview.GetElementVisual(GalleryViewer).Opacity = 0;
+        Motion.Fade(GalleryViewer, 1, 200, _prefs.ReduceMotion);
+        ShowViewerPicture();
+        AutomationProperties.SetName(GalleryViewerClose, Strings.Get("Close"));
+        (_gallery.Count > 1 ? GalleryViewerNext : GalleryViewerClose).Focus(FocusState.Keyboard);
+    }
+
+    private void StepGalleryViewer(int step)
+    {
+        if (!ViewerOpen || _gallery.Count < 2) return;
+        Sounds.Play(UiSound.Move);
+        _viewerIndex = ((_viewerIndex + step) % _gallery.Count + _gallery.Count) % _gallery.Count;
+        ShowViewerPicture();
+    }
+
+    private void ShowViewerPicture()
+    {
+        if (_gallery.At(_viewerIndex) is not { } path) return;
+        var width = (int)Math.Ceiling(1540 * Math.Max(1, Root.XamlRoot?.RasterizationScale ?? 1));
+        try { GalleryViewerImage.Source = new BitmapImage { DecodePixelWidth = width, UriSource = new Uri(path) }; }
+        catch (Exception ex) when (ex is UriFormatException or ArgumentException) { GalleryViewerImage.Source = null; }
+        GalleryViewerName.Text = Path.GetFileNameWithoutExtension(path);
+        GalleryViewerCount.Text = $"{_viewerIndex + 1} / {_gallery.Count}";
+        var several = _gallery.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        GalleryViewerPrevious.Visibility = GalleryViewerNext.Visibility = several;
+        AutomationProperties.SetName(GalleryViewerPrevious, Strings.Get("GalleryPrevious"));
+        AutomationProperties.SetName(GalleryViewerNext, Strings.Get("GalleryNext"));
+    }
+
+    private void CloseGalleryViewer()
+    {
+        if (!ViewerOpen) return;
+        Sounds.Play(UiSound.Back);
+        GalleryViewer.Visibility = Visibility.Collapsed;
+        GalleryViewerImage.Source = null;
+        GalleryGrid.Children.OfType<Button>().FirstOrDefault()?.Focus(FocusState.Keyboard);
+    }
+
+    private void OnGalleryClose(object sender, RoutedEventArgs args) => CloseGalleryViewer();
+
+    /// <summary>A click outside the picture and the buttons closes the viewer.</summary>
+    private void OnGalleryViewerTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs args)
+    {
+        if (ReferenceEquals(args.OriginalSource, GalleryViewer)) CloseGalleryViewer();
+    }
+
+    private void OnGalleryPrevious(object sender, RoutedEventArgs args) => StepGalleryViewer(-1);
+
+    private void OnGalleryNext(object sender, RoutedEventArgs args) => StepGalleryViewer(1);
+
+    /// <summary>
+    /// The controller in and out of the gallery: up from the dock reaches it, down or left from it goes back to the dock.
+    /// Returns true when it took care of the move.
+    /// </summary>
+    private bool MoveAroundGallery(FocusNavigationDirection direction, DependencyObject focused)
+    {
+        if (ViewerOpen)
+        {
+            if (direction is FocusNavigationDirection.Left or FocusNavigationDirection.Right)
+                StepGalleryViewer(direction == FocusNavigationDirection.Left ? -1 : 1);
+            return true;
+        }
+        var tiles = GalleryGrid.Children.OfType<Button>().ToList();
+        if (tiles.Count == 0 || WidgetColumn.Visibility != Visibility.Visible || GalleryWidget.Visibility != Visibility.Visible) return false;
+        if (IsInside(focused, GalleryGrid))
+        {
+            if (FocusManager.TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = GalleryGrid })) return true;
+            if (direction == FocusNavigationDirection.Up) return true;
+            FocusSelection();
+            return true;
+        }
+        if (direction == FocusNavigationDirection.Up && IsInside(focused, DockRow))
+        {
+            // The picture nearest the dock: the bottom-left one.
+            var target = tiles.OrderByDescending(tile => Grid.GetRow(tile) + Grid.GetRowSpan(tile)).ThenBy(Grid.GetColumn).First();
+            target.Focus(FocusState.Keyboard);
+            return true;
+        }
+        return false;
     }
 
     /// <summary>The picture large beside the widgets; the rotation waits until it closes.</summary>

@@ -33,9 +33,19 @@ public sealed record LiquidPreset(
     /// <summary>The three liquid levels, dark or light: the tint keeps the text readable over bright artwork.</summary>
     public static LiquidPreset For(GlassDepth glass, bool dark) => glass switch
     {
-        GlassDepth.LiquidSubtle => new(3.4, 18, 1.3, 3, 0.4, 35, 25, 0.7, 1.05, dark ? 0.56 : 0.52, dark ? -0.06 : 0.04),
-        GlassDepth.LiquidDeep => new(1.4, 34, 2.0, 8, 0.7, 75, 55, 1.4, 1.25, dark ? 0.28 : 0.26, dark ? -0.02 : 0.02),
-        _ => new(2.4, 26, 1.6, 5, 0.5, 55, 40, 1.0, 1.15, dark ? 0.42 : 0.38, dark ? -0.04 : 0.03)
+        // Blur is a radius in pixels; Bloom is how much of the sharp backdrop comes back (0 = fully frosted, 1 = sharp).
+        GlassDepth.LiquidSubtle => new(22, 16, 1.2, 3, 0.35, 35, 25, 0, 1.05, dark ? 0.5 : 0.46, dark ? -0.06 : 0.04),
+        GlassDepth.LiquidDeep => new(5, 48, 2.6, 12, 0.9, 95, 75, 0.25, 1.3, dark ? 0.16 : 0.14, 0),
+        _ => new(12, 30, 1.8, 7, 0.6, 65, 50, 0.08, 1.18, dark ? 0.32 : 0.28, dark ? -0.03 : 0.02)
+    };
+
+    /// <summary>
+    /// The same level for a popup (menu, alert, notice): what is behind must not compete with its text, so it is always
+    /// well frosted and a little more tinted, while the refraction and glare of the level stay.
+    /// </summary>
+    public LiquidPreset ForPopup() => this with
+    {
+        Blur = Math.Max(Blur, 26), Bloom = 0, Tint = Math.Max(Tint, 0.34), Saturation = Math.Max(Saturation, 1.15)
     };
 }
 
@@ -112,7 +122,9 @@ public static class ThemeCatalog
         GlassDepth.Subtle => 0.35,
         GlassDepth.Medium => 0.6,
         // The liquid shader draws its own glare and rim: only a hint of sheen on top.
-        _ when IsLiquid(glass) => 0.25,
+        GlassDepth.LiquidSubtle => 0.15,
+        GlassDepth.Liquid => 0.3,
+        GlassDepth.LiquidDeep => 0.5,
         _ => 1
     };
 
@@ -133,12 +145,14 @@ public static class ThemeCatalog
         Overlay = Argb.FromHex("#991E1E1E"),
         Material = Argb.FromHex("#1E1E1E").WithAlpha(MaterialAlpha(glass)),
         MaterialStroke = Argb.FromHex(glass == GlassDepth.Off ? "#14FFFFFF" : "#1AFFFFFF"),
-        Control = Argb.FromHex("#FF3A3A3C"),
+        // With liquid glass the controls on a panel are a light veil, so the glass shows through them too.
+        Control = Argb.FromHex(IsLiquid(glass) ? "#2EFFFFFF" : "#FF3A3A3C"),
         Text = Argb.FromHex("#FFFFFF"),
         TextSecondary = Argb.FromHex("#99FFFFFF"),
         Focus = Argb.FromHex("#E5FFFFFF"),
         FocusText = Argb.FromHex("#000000"),
-        Scrim = Argb.FromHex("#80000000"),
+        // A lighter dim keeps the artwork alive behind a liquid popup, for the glass to bend.
+        Scrim = Argb.FromHex(IsLiquid(glass) ? "#47000000" : "#80000000"),
         Separator = Argb.FromHex("#26FFFFFF"),
         Sheen = Sheen(glass),
         TintOpacity = Tint(glass)
@@ -152,12 +166,12 @@ public static class ThemeCatalog
         Overlay = Argb.FromHex("#B2E1E1E1"),
         Material = Argb.FromHex("#FEFDFF").WithAlpha(MaterialAlpha(glass)),
         MaterialStroke = Argb.FromHex("#29FFFFFF"),
-        Control = Argb.FromHex("#FFE5E5EA"),
+        Control = Argb.FromHex(IsLiquid(glass) ? "#1F000000" : "#FFE5E5EA"),
         Text = Argb.FromHex("#000000"),
         TextSecondary = Argb.FromHex("#99000000"),
         Focus = Argb.FromHex("#F2FFFFFF"),
         FocusText = Argb.FromHex("#000000"),
-        Scrim = Argb.FromHex("#66000000"),
+        Scrim = Argb.FromHex(IsLiquid(glass) ? "#33000000" : "#66000000"),
         Separator = Argb.FromHex("#1F000000"),
         Sheen = Sheen(glass),
         TintOpacity = Tint(glass)

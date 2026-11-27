@@ -51,9 +51,38 @@ public static class ControllerWake
         return WakeDeviceKind.None;
     }
 
-    /// <summary>The controller-related devices, the adapter first, then Bluetooth, then controllers.</summary>
-    public static List<WakeDevice> Relevant(IEnumerable<WakeDevice> devices) =>
-        [.. devices.Where(d => d.Kind != WakeDeviceKind.None).OrderBy(d => d.Kind).ThenBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase)];
+    /// <summary>
+    /// The controller-related devices, the adapter first, then Bluetooth, then controllers. A controller paired over
+    /// Bluetooth is left out when the radio itself can't wake the PC: in sleep the radio is off, so arming the controller
+    /// changes nothing and it never finds the PC.
+    /// </summary>
+    public static List<WakeDevice> Relevant(IEnumerable<WakeDevice> devices)
+    {
+        var list = devices.Where(d => d.Kind != WakeDeviceKind.None).ToList();
+        var radio = list.Any(d => d.Kind == WakeDeviceKind.Bluetooth);
+        return [.. list.Where(d => radio || !IsBluetoothPaired(d.InstanceName))
+            .OrderBy(d => d.Kind).ThenBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase)];
+    }
+
+    /// <summary>
+    /// True when the only controller is paired over the PC's Bluetooth and that radio can't wake it, with no Xbox adapter
+    /// or cable: the case where waking with the controller is impossible, not just off.
+    /// </summary>
+    public static bool BluetoothCantWake(IEnumerable<WakeDevice> devices)
+    {
+        var list = devices.Where(d => d.Kind != WakeDeviceKind.None).ToList();
+        return list.Any(d => IsBluetoothPaired(d.InstanceName))
+            && !list.Any(d => d.Kind is WakeDeviceKind.Bluetooth or WakeDeviceKind.XboxAdapter)
+            && !list.Any(d => d.Kind == WakeDeviceKind.Controller && !IsBluetoothPaired(d.InstanceName));
+    }
+
+    /// <summary>A device reached through Bluetooth (HID over GATT, classic or LE enumerators), not on a cable or adapter.</summary>
+    public static bool IsBluetoothPaired(string? instanceName)
+    {
+        var id = (instanceName ?? "").ToUpperInvariant();
+        return id.Contains("{00001812-0000-1000-8000-00805F9B34FB}", StringComparison.Ordinal)
+            || id.StartsWith(@"BTHENUM\", StringComparison.Ordinal) || id.StartsWith(@"BTHLE", StringComparison.Ordinal);
+    }
 
     /// <summary>Reads the JSON the query script prints (one object or an array).</summary>
     public static List<WakeDevice> Parse(string? json)

@@ -22,6 +22,9 @@ public sealed class GlassSurface : Grid
 
     public static bool IsLiquidBroken { get; private set; }
 
+    /// <summary>Set on popups (menus, alerts, notices): their liquid glass is always well frosted, for the text on it.</summary>
+    public bool Popup { get; set; }
+
     public GlassSurface()
     {
         IsHitTestVisible = false;
@@ -61,6 +64,7 @@ public sealed class GlassSurface : Grid
             return;
         }
         var preset = LiquidPreset.For(_level, _dark);
+        if (Popup) preset = preset.ForPopup();
         Background = new LiquidGlassBrush
         {
             BlurAmount = preset.Blur,

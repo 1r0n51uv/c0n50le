@@ -91,4 +91,24 @@ public sealed class ControllerWakeTests
     [Fact]
     public void Scripts_are_encoded_for_powershell_as_utf16() =>
         Assert.Equal("dwBoAG8AYQBtAGkA", ControllerWake.Encode("whoami"));
+
+    [Fact]
+    public void A_Bluetooth_controller_is_not_offered_when_the_radio_cannot_wake_the_PC()
+    {
+        // This PC: an Xbox pad over Bluetooth LE, the Intel radio missing from the wake list.
+        var pad = new WakeDevice(@"HID\{00001812-0000-1000-8000-00805f9b34fb}&Dev&VID_045e&PID_0b22&REV_0523&686ce646e2f3&Col01&IG_00\a&1886bf&0&0000_0", "Controller gioco compatibile HID", "HIDClass", false);
+        var lan = new WakeDevice(@"PCI\VEN_10EC&DEV_8168\6_0", "Realtek", "Net", true);
+        Assert.Empty(ControllerWake.Relevant([pad, lan]));
+        Assert.True(ControllerWake.BluetoothCantWake([pad, lan]));
+
+        // With the radio able to wake, the pad counts again.
+        var radio = new WakeDevice(@"USB\VID_8087&PID_0025\6_0", "Intel Bluetooth", "Bluetooth", false);
+        Assert.Equal(2, ControllerWake.Relevant([pad, radio]).Count);
+        Assert.False(ControllerWake.BluetoothCantWake([pad, radio]));
+
+        // A wired pad or the Xbox adapter is a way to wake it.
+        var wired = new WakeDevice(@"USB\VID_045E&PID_0B12\3032_0", "Xbox Controller", "XnaComposite", false);
+        Assert.False(ControllerWake.BluetoothCantWake([pad, wired]));
+        Assert.Equal([wired], ControllerWake.Relevant([pad, wired]));
+    }
 }

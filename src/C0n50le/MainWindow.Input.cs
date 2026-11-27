@@ -85,6 +85,12 @@ public sealed partial class MainWindow
             ShowHome();
             return;
         }
+        // The screenshot combination works from anywhere too, a game in front above all.
+        if (ShortcutChoices.Triggered(_prefs.ScreenshotShortcut, previous, pad.Held))
+        {
+            _ = TakeScreenshotAsync();
+            return;
+        }
         if (!IsForeground || Root.XamlRoot is null) return;
         if (_input.Mode == InputMode.Controller) HideCursor();
         if (pad.Active)
@@ -105,6 +111,33 @@ public sealed partial class MainWindow
         if ((pressed & ControllerButtons.RightShoulder) != 0) StepCategory(1);
     }
 
+    private bool _capturing;
+
+    /// <summary>
+    /// Saves the screen in front into the gallery's folder (a "c0n50le" folder inside it), with the camera sound; the
+    /// gallery picks it up at once.
+    /// </summary>
+    private async Task TakeScreenshotAsync()
+    {
+        if (_capturing) return;
+        _capturing = true;
+        try
+        {
+            var path = await ScreenCapture.SaveAsync(Path.Combine(GalleryFolder, "c0n50le"));
+            AppLog.Write($"Screenshot: {path}");
+            Sounds.Play(UiSound.Confirm);
+            if (IsForeground) ShowToast(Strings.Get("ScreenshotSaved"));
+            _galleryLoaded = null;
+            if (_prefs.ShowWidgets && _prefs.ShowGallery) _ = LoadGalleryAsync();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write($"Screenshot non riuscito: {ex.Message}");
+            if (IsForeground) ShowToast(Strings.Get("ScreenshotFailed"));
+        }
+        finally { _capturing = false; }
+    }
+
     private void MoveFocus(int moves)
     {
         if (TourVisible) return;
@@ -117,6 +150,11 @@ public sealed partial class MainWindow
         if (focused is null || !IsInside(focused, scope))
         {
             FocusFirst(scope);
+            return;
+        }
+        if (scope == Stage && MoveAroundGallery(direction, focused))
+        {
+            Sounds.Play(UiSound.Move);
             return;
         }
         if (FocusManager.TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = scope }))
@@ -156,6 +194,7 @@ public sealed partial class MainWindow
     private void GoBack()
     {
         if (AlertOpen) { DismissAlert(); return; }
+        if (ViewerOpen) { CloseGalleryViewer(); return; }
         if (TourVisible) { EndTour(); return; }
         if (MenuOpen) { CloseMenu(); return; }
         if (SystemPage.Visibility == Visibility.Visible) { GoBackInSystem(); return; }
@@ -196,6 +235,10 @@ public sealed partial class MainWindow
             case VirtualKey.Application:
             case VirtualKey.F10 when IsShiftDown():
                 OpenOptions();
+                args.Handled = true;
+                break;
+            case VirtualKey.Left or VirtualKey.Right when ViewerOpen:
+                StepGalleryViewer(args.Key == VirtualKey.Left ? -1 : 1);
                 args.Handled = true;
                 break;
             case VirtualKey.F1:

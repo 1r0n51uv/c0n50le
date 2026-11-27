@@ -18,6 +18,11 @@ public sealed class Gallery
 
     public int Count => _pictures.Count;
 
+    /// <summary>The picture at <paramref name="index"/>, wrapping around both ways (for the viewer's previous and next).</summary>
+    public string? At(int index) => _pictures.Count == 0 ? null : _pictures[((index % _pictures.Count) + _pictures.Count) % _pictures.Count];
+
+    public int IndexOf(string path) => _pictures is List<string> list ? list.IndexOf(path) : _pictures.ToList().IndexOf(path);
+
     /// <summary>The next picture, or null when the folder has none.</summary>
     public string? Next()
     {

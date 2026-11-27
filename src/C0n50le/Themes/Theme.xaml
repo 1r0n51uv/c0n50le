@@ -109,6 +109,29 @@
         </Setter>
     </Style>
 
+    <!-- A popup (menu, alert, tour, notice): the same panel, with its liquid glass always well frosted for the text. -->
+    <Style x:Key="GlassPopup" TargetType="ContentControl">
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid>
+                        <!-- Acrylic, or a liquid glass of its own with the "Liquid" setting. -->
+                        <ui:GlassSurface Popup="True" CornerRadius="{TemplateBinding CornerRadius}"/>
+                        <Border Background="{StaticResource SheenBrush}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+                        <!-- The content (a menu's options) may fill the panel to its rounded edge; the soft rim stays on top. -->
+                        <ContentPresenter Content="{TemplateBinding Content}" Padding="{TemplateBinding Padding}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        <Border BorderBrush="{StaticResource RimBrush}" BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- The one focus behaviour, for every control: the background turns into the white platter and only the text and icons
          grow a little; the shape never does, so it never spills out of its panel. With the mouse, hovering moves the focus,
          so it looks the same. -->
@@ -181,6 +204,78 @@
         </Grid>
     </ControlTemplate>
 
+    <!-- The same, on a glass of its own (liquid when chosen): for buttons that sit on the artwork, not on a panel. -->
+    <ControlTemplate x:Key="GlassPlatterTemplate" TargetType="Button">
+        <Grid x:Name="Root">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal"/>
+                    <VisualState x:Name="PointerOver"/>
+                    <VisualState x:Name="Pressed">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Press" Storyboard.TargetProperty="ScaleX" To="0.96" Duration="0:0:0.08"/>
+                            <DoubleAnimation Storyboard.TargetName="Press" Storyboard.TargetProperty="ScaleY" To="0.96" Duration="0:0:0.08"/>
+                        </Storyboard>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="Opacity" To="0.4" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                </VisualStateGroup>
+                <VisualStateGroup x:Name="FocusStates">
+                    <VisualStateGroup.Transitions>
+                        <VisualTransition GeneratedDuration="0:0:0.16">
+                            <VisualTransition.GeneratedEasingFunction>
+                                <CubicEase EasingMode="EaseOut"/>
+                            </VisualTransition.GeneratedEasingFunction>
+                        </VisualTransition>
+                    </VisualStateGroup.Transitions>
+                    <VisualState x:Name="Unfocused"/>
+                    <VisualState x:Name="Focused">
+                        <VisualState.Setters>
+                            <Setter Target="Content.Foreground" Value="{StaticResource FocusTextBrush}"/>
+                        </VisualState.Setters>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Platter" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="{StaticResource FocusScale}" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="{StaticResource FocusScale}" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                    <VisualState x:Name="PointerFocused">
+                        <VisualState.Setters>
+                            <Setter Target="Content.Foreground" Value="{StaticResource FocusTextBrush}"/>
+                        </VisualState.Setters>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Platter" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="{StaticResource FocusScale}" Duration="0"/>
+                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="{StaticResource FocusScale}" Duration="0"/>
+                        </Storyboard>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+            <Grid RenderTransformOrigin="0.5,0.5">
+                <Grid.RenderTransform>
+                    <ScaleTransform x:Name="Press"/>
+                </Grid.RenderTransform>
+                <ui:GlassSurface CornerRadius="{TemplateBinding CornerRadius}"/>
+                <Border Background="{StaticResource SheenBrush}" CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False"/>
+                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"/>
+                <Border x:Name="Platter" Opacity="0" Background="{StaticResource FocusBrush}" CornerRadius="{TemplateBinding CornerRadius}"/>
+                <ContentPresenter x:Name="Content" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                  RenderTransformOrigin="0.5,0.5" AutomationProperties.AccessibilityView="Raw">
+                    <ContentPresenter.RenderTransform>
+                        <ScaleTransform x:Name="Scale"/>
+                    </ContentPresenter.RenderTransform>
+                </ContentPresenter>
+            </Grid>
+        </Grid>
+    </ControlTemplate>
+
     <Style x:Key="PlatterBase" TargetType="Button">
         <Setter Property="Template" Value="{StaticResource PlatterTemplate}"/>
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
@@ -195,7 +290,8 @@
 
     <!-- Product screen button: 84 high, corner 12, Bold 31, on the material. -->
     <Style x:Key="TvButton" TargetType="Button" BasedOn="{StaticResource PlatterBase}">
-        <Setter Property="Background" Value="{StaticResource MaterialBrush}"/>
+        <Setter Property="Template" Value="{StaticResource GlassPlatterTemplate}"/>
+        <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Height" Value="84"/>
         <Setter Property="MinWidth" Value="260"/>
         <Setter Property="Padding" Value="40,0"/>
@@ -233,7 +329,8 @@
 
     <!-- Round icon button on the material, 64. -->
     <Style x:Key="TvIconButton" TargetType="Button" BasedOn="{StaticResource PlatterBase}">
-        <Setter Property="Background" Value="{StaticResource MaterialBrush}"/>
+        <Setter Property="Template" Value="{StaticResource GlassPlatterTemplate}"/>
+        <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Width" Value="64"/>
         <Setter Property="Height" Value="64"/>
         <Setter Property="Padding" Value="0"/>

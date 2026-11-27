@@ -67,8 +67,7 @@
                             </StackPanel>
                         </StackPanel>
                         <!-- Widgets on the right, under the app bar: weather, news, gallery. Filled from code. -->
-                        <Grid x:Name="WidgetColumn" Width="460" HorizontalAlignment="Right" Margin="0,150,0,0" RowSpacing="18"
-                              IsHitTestVisible="False">
+                        <Grid x:Name="WidgetColumn" Width="460" HorizontalAlignment="Right" Margin="0,150,0,0" RowSpacing="18">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
@@ -76,7 +75,7 @@
                             </Grid.RowDefinitions>
                             <ContentControl x:Name="WeatherWidget" Style="{StaticResource GlassPanel}" CornerRadius="30" Padding="28,22"/>
                             <ContentControl x:Name="NewsWidget" Grid.Row="1" Style="{StaticResource GlassPanel}" CornerRadius="30" Padding="28,22"/>
-                            <Grid x:Name="GalleryWidget" Grid.Row="2" CornerRadius="30" MinHeight="140" Background="{StaticResource ControlBrush}">
+                            <Grid x:Name="GalleryWidget" Grid.Row="2" CornerRadius="30" Height="260" VerticalAlignment="Top" Background="{StaticResource ControlBrush}">
                                 <Border x:Name="GallerySkeleton" Background="{StaticResource GlyphCircleBrush}" Visibility="Collapsed"/>
                                 <!-- Up to four pictures; each opens a large preview while the pointer or the focus is on it. -->
                                 <Grid x:Name="GalleryGrid" RowSpacing="6" ColumnSpacing="6">
@@ -237,10 +236,32 @@
                     </Grid>
                 </Grid>
 
+                <!-- ───────── Gallery viewer: one picture large, the previous and next ones with ←/→ or the buttons ───────── -->
+                <Grid x:Name="GalleryViewer" Visibility="Collapsed" Background="#E6000000" Tapped="OnGalleryViewerTapped">
+                    <Image x:Name="GalleryViewerImage" Stretch="Uniform" Margin="190,90,190,150"/>
+                    <Button x:Name="GalleryViewerClose" Style="{StaticResource TvIconButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                            Margin="0,48,70,0" Click="OnGalleryClose">
+                        <FontIcon Glyph="&#xE711;" FontSize="24"/>
+                    </Button>
+                    <Button x:Name="GalleryViewerPrevious" Style="{StaticResource TvIconButton}" Width="84" Height="84" CornerRadius="42"
+                            HorizontalAlignment="Left" VerticalAlignment="Center" Margin="70,0,0,0" Click="OnGalleryPrevious">
+                        <FontIcon Glyph="&#xE76B;" FontSize="30"/>
+                    </Button>
+                    <Button x:Name="GalleryViewerNext" Style="{StaticResource TvIconButton}" Width="84" Height="84" CornerRadius="42"
+                            HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,70,0" Click="OnGalleryNext">
+                        <FontIcon Glyph="&#xE76C;" FontSize="30"/>
+                    </Button>
+                    <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,56" Spacing="6">
+                        <TextBlock x:Name="GalleryViewerName" FontSize="24" FontWeight="SemiBold" TextAlignment="Center" Foreground="White"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="1200"/>
+                        <TextBlock x:Name="GalleryViewerCount" FontSize="20" TextAlignment="Center" Foreground="#B3FFFFFF"/>
+                    </StackPanel>
+                </Grid>
+
                 <!-- ───────── Context menu (a card's options, a setting's choices) ───────── -->
                 <Grid x:Name="MenuLayer" Visibility="Collapsed" Background="Transparent" Tapped="OnMenuBackgroundTapped">
                     <Canvas>
-                    <ContentControl x:Name="MenuPanel" Style="{StaticResource GlassPanel}" CornerRadius="30" Width="460"
+                    <ContentControl x:Name="MenuPanel" Style="{StaticResource GlassPopup}" CornerRadius="30" Width="460"
                                     HorizontalAlignment="Left" VerticalAlignment="Top" Tapped="OnMenuPanelTapped">
                         <ScrollViewer MaxHeight="760" Background="Transparent" VerticalScrollBarVisibility="Hidden" IsTabStop="False">
                             <StackPanel x:Name="MenuItems" Background="Transparent"/>
@@ -251,7 +272,7 @@
 
                 <!-- ───────── Alert ───────── -->
                 <Grid x:Name="AlertLayer" Visibility="Collapsed" Background="{StaticResource ScrimBrush}">
-                    <ContentControl x:Name="AlertPanel" Style="{StaticResource GlassPanel}" CornerRadius="48" Width="560"
+                    <ContentControl x:Name="AlertPanel" Style="{StaticResource GlassPopup}" CornerRadius="48" Width="560"
                                     HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32,40,32,32">
                         <StackPanel Spacing="24">
                             <StackPanel Spacing="12">
@@ -273,7 +294,7 @@
                         <Border x:Name="TourHighlight" BorderBrush="{StaticResource FocusBrush}" BorderThickness="4" CornerRadius="34"
                                 IsHitTestVisible="False"/>
                     </Canvas>
-                    <ContentControl x:Name="TourCard" Style="{StaticResource GlassPanel}" CornerRadius="48" Width="620" Padding="40,36,40,32"
+                    <ContentControl x:Name="TourCard" Style="{StaticResource GlassPopup}" CornerRadius="48" Width="620" Padding="40,36,40,32"
                                     HorizontalAlignment="Center" VerticalAlignment="Center">
                         <StackPanel Spacing="16">
                             <TextBlock x:Name="TourStep" Style="{StaticResource Caption}" HorizontalAlignment="Center"/>
@@ -290,7 +311,7 @@
                 </Grid>
 
                 <!-- ───────── Notice ───────── -->
-                <ContentControl x:Name="Toast" Style="{StaticResource GlassPanel}" CornerRadius="30" Padding="32,20"
+                <ContentControl x:Name="Toast" Style="{StaticResource GlassPopup}" CornerRadius="30" Padding="32,20"
                                 HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,110" MaxWidth="1200" IsHitTestVisible="False">
                     <TextBlock x:Name="ToastText" FontSize="25" FontWeight="Medium" TextWrapping="Wrap" Foreground="{StaticResource TextBrush}"/>
                 </ContentControl>

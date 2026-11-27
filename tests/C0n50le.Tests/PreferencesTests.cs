@@ -89,4 +89,17 @@ public sealed class PreferencesTests : IDisposable
         Assert.True(File.Exists(kept));
         Assert.False(File.Exists(orphan));
     }
+
+    [Fact]
+    public void Screenshot_combination_defaults_and_never_overlaps_the_home_one()
+    {
+        var fresh = new Preferences();
+        fresh.Normalize();
+        Assert.Equal(ShortcutChoices.DefaultScreenshot, fresh.ScreenshotShortcut);
+        var unknown = new Preferences { ScreenshotShortcut = 12345 };
+        unknown.Normalize();
+        Assert.Equal(ShortcutChoices.DefaultScreenshot, unknown.ScreenshotShortcut);
+        Assert.All(ShortcutChoices.Screenshot.Where(mask => mask != 0), shot =>
+            Assert.All(ShortcutChoices.Controller.Where(mask => mask != 0), home => Assert.NotEqual(home, shot & home)));
+    }
 }

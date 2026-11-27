@@ -28,6 +28,8 @@ public sealed class Preferences
     // Controls
     public string KeyboardShortcut { get; set; } = "F11";
     public int ControllerShortcut { get; set; } = Input.ControllerButtons.View | Input.ControllerButtons.Y;
+    /// <summary>The controller combination that saves a screenshot of the screen in front (0 = off).</summary>
+    public int ScreenshotShortcut { get; set; } = Input.ShortcutChoices.DefaultScreenshot;
 
     // Look and sound
     public string Theme { get; set; } = Theming.ThemeCatalog.DefaultId;
@@ -119,6 +121,9 @@ public sealed class Preferences
         if (!Input.ShortcutChoices.IsKnownKeyboard(KeyboardShortcut)) KeyboardShortcut = "F11";
         if (!Input.ShortcutChoices.IsKnownController(ControllerShortcut))
             ControllerShortcut = Input.ControllerButtons.View | Input.ControllerButtons.Y;
+        if (!Input.ShortcutChoices.IsKnownScreenshot(ScreenshotShortcut)) ScreenshotShortcut = Input.ShortcutChoices.DefaultScreenshot;
+        // One combination can't do two things.
+        if (ScreenshotShortcut != 0 && (ScreenshotShortcut & ControllerShortcut) == ControllerShortcut) ScreenshotShortcut = 0;
         WeatherCity = (WeatherCity ?? "").Trim();
         NewsFeed = (NewsFeed ?? "").Trim();
         if (NewsFeed.Length > 0 && !Widgets.News.IsValidUrl(NewsFeed)) NewsFeed = "";

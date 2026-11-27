@@ -14,7 +14,7 @@ public static class ControllerWakeService
 
     public enum EnableResult { Done, Canceled, Failed, NotFound }
 
-    /// <summary>The controller-related devices that can wake the PC, or null when they couldn't be read.</summary>
+    /// <summary>Every device that can wake the PC (see <see cref="ControllerWake.Relevant"/>), or null when they couldn't be read.</summary>
     public static List<WakeDevice>? Read()
     {
         try
@@ -42,7 +42,7 @@ public static class ControllerWakeService
                 AppLog.Write($"Riattivazione col controller: lettura fallita ({process.ExitCode})");
                 return null;
             }
-            return ControllerWake.Relevant(ControllerWake.Parse(output.Result));
+            return ControllerWake.Parse(output.Result);
         }
         catch (Exception ex)
         {

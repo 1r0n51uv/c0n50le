@@ -90,6 +90,19 @@ public static class ShortcutChoices
         ControllerButtons.View | ControllerButtons.Back
     ];
 
+    /// <summary>Combinations for a quick screenshot, apart from the home ones' Y; 0 turns it off.</summary>
+    public static IReadOnlyList<int> Screenshot { get; } =
+    [
+        0,
+        ControllerButtons.View | ControllerButtons.X,
+        ControllerButtons.View | ControllerButtons.LeftShoulder,
+        ControllerButtons.View | ControllerButtons.RightShoulder
+    ];
+
+    public const int DefaultScreenshot = ControllerButtons.View | ControllerButtons.X;
+
+    public static bool IsKnownScreenshot(int mask) => Screenshot.Contains(mask);
+
     public static bool IsKnownKeyboard(string? key) => key is not null && Keyboard.Contains(key);
     public static bool IsKnownController(int mask) => Controller.Contains(mask);
 

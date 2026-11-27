@@ -159,4 +159,15 @@ public sealed class WidgetTests
         Assert.Equal(4, covered.Distinct().Count());
         Assert.All(covered, place => Assert.True(place.row is >= 0 and < 2 && place.column is >= 0 and < 2));
     }
+
+    [Fact]
+    public void Gallery_viewer_steps_around_both_ways()
+    {
+        var gallery = new Gallery(["a", "b", "c"]);
+        Assert.Equal("c", gallery.At(-1));
+        Assert.Equal("a", gallery.At(3));
+        Assert.Equal(1, gallery.IndexOf("b"));
+        Assert.Equal(-1, gallery.IndexOf("z"));
+        Assert.Null(new Gallery([]).At(0));
+    }
 }

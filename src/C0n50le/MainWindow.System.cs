@@ -268,6 +268,10 @@ public sealed partial class MainWindow
         var padIndex = ShortcutChoices.Controller.ToList().IndexOf(_prefs.ControllerShortcut);
         Choice("ControllerShortcut", "ControllerShortcutBody", pads[Math.Max(0, padIndex)], pads, padIndex,
             index => _prefs.ControllerShortcut = ShortcutChoices.Controller[index]);
+        var shots = ShortcutChoices.Screenshot.Select(mask => mask == 0 ? Strings.Get("Off") : ButtonGlyphs.Combination(mask, family)).ToArray();
+        var shotIndex = ShortcutChoices.Screenshot.ToList().IndexOf(_prefs.ScreenshotShortcut);
+        Choice("ScreenshotShortcut", "ScreenshotShortcutBody", shots[Math.Max(0, shotIndex)], shots, shotIndex,
+            index => _prefs.ScreenshotShortcut = ShortcutChoices.Screenshot[index]);
         var wake = Row("ControllerWake", "ControllerWakeBody", WakeValueText(), chevron: true);
         _wakeValue = (TextBlock)wake.Tag;
         wake.Click += async (_, _) =>
@@ -283,21 +287,21 @@ public sealed partial class MainWindow
     // ───────── Waking the PC with the controller (from consolemode) ─────────
 
     private List<WakeDevice>? _wakeDevices;
-    private bool _wakeChecked, _wakeBusy;
+    private bool _wakeChecked, _wakeBusy, _wakeBluetoothOnly;
     private TextBlock? _wakeValue;
 
     /// <summary>The row's value: on, the verb to turn it on, or why it can't be.</summary>
     private string WakeValueText()
     {
         if (_wakeBusy || !_wakeChecked) return Strings.Get("ControllerWakeChecking");
-        if (_wakeDevices is not { Count: > 0 }) return Strings.Get("ControllerWakeUnavailable");
+        if (_wakeDevices is not { Count: > 0 }) return Strings.Get(_wakeBluetoothOnly ? "ControllerWakeNeedsAdapter" : "ControllerWakeUnavailable");
         return Strings.Get(_wakeDevices.All(device => device.Armed) ? "On" : "ControllerWakeButton");
     }
 
     private string WakeStatusText()
     {
         if (_wakeDevices is null) return Strings.Get("ControllerWakeUnknown");
-        if (_wakeDevices.Count == 0) return Strings.Get("ControllerWakeNone");
+        if (_wakeDevices.Count == 0) return Strings.Get(_wakeBluetoothOnly ? "ControllerWakeBluetooth" : "ControllerWakeNone");
         var off = _wakeDevices.Where(device => !device.Armed).ToList();
         return off.Count == 0
             ? Strings.Format("ControllerWakeReady", WakeNames(_wakeDevices))
@@ -316,7 +320,9 @@ public sealed partial class MainWindow
     {
         _wakeBusy = true;
         ShowWakeValue();
-        _wakeDevices = await Task.Run(ControllerWakeService.Read);
+        var all = await Task.Run(ControllerWakeService.Read);
+        _wakeDevices = all is null ? null : ControllerWake.Relevant(all);
+        _wakeBluetoothOnly = all is not null && ControllerWake.BluetoothCantWake(all);
         _wakeChecked = true;
         _wakeBusy = false;
         ShowWakeValue();
