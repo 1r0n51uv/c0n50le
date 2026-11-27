@@ -11,4 +11,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Localization\Strings.*.json" WithCulture="false" LogicalName="C0n50le.Strings.%(Filename).json" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+  </ItemGroup>
 </Project>

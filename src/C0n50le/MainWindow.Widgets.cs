@@ -27,7 +27,6 @@ public sealed partial class MainWindow
     private CancellationTokenSource? _widgetRequest;
     private Gallery _gallery = new([]);
     private string? _galleryLoaded;
-    private string? _previewing;
     private int _galleryRequest;
 
     private static HttpClient CreateWidgetClient()
@@ -287,75 +286,82 @@ public sealed partial class MainWindow
 
     // ───────── Gallery ─────────
 
-    private FileSystemWatcher? _galleryWatcher;
+    private readonly List<FileSystemWatcher> _galleryWatchers = [];
     private volatile bool _galleryDirty;
     private IReadOnlyList<string> _galleryShown = [];
 
-    private void WatchGallery(string folder)
+    /// <summary>The folders the gallery reads: the chosen pictures folder and the screen recordings.</summary>
+    private string[] GalleryFolders => [GalleryFolder, RecordingsFolder];
+
+    private void WatchGallery(string[] folders)
     {
-        if (_galleryWatcher?.Path == folder) return;
-        _galleryWatcher?.Dispose();
-        _galleryWatcher = null;
-        if (!Directory.Exists(folder)) return;
-        try
+        var wanted = folders.Where(Directory.Exists).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (wanted.SequenceEqual(_galleryWatchers.Select(watcher => watcher.Path), StringComparer.OrdinalIgnoreCase)) return;
+        foreach (var old in _galleryWatchers) old.Dispose();
+        _galleryWatchers.Clear();
+        foreach (var folder in wanted)
         {
-            var watcher = new FileSystemWatcher(folder)
+            try
             {
-                IncludeSubdirectories = true, NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.DirectoryName
-            };
-            FileSystemEventHandler changed = (_, args) => { if (Gallery.Extensions.Contains(Path.GetExtension(args.FullPath))) _galleryDirty = true; };
-            watcher.Created += changed;
-            watcher.Deleted += changed;
-            watcher.Changed += changed;
-            watcher.Renamed += (_, _) => _galleryDirty = true;
-            watcher.EnableRaisingEvents = true;
-            _galleryWatcher = watcher;
-        }
-        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
-        {
-            AppLog.Write($"Galleria: impossibile osservare la cartella: {ex.Message}");
+                var watcher = new FileSystemWatcher(folder)
+                {
+                    IncludeSubdirectories = true, NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.DirectoryName
+                };
+                FileSystemEventHandler changed = (_, args) => { if (Gallery.Extensions.Contains(Path.GetExtension(args.FullPath))) _galleryDirty = true; };
+                watcher.Created += changed;
+                watcher.Deleted += changed;
+                watcher.Changed += changed;
+                watcher.Renamed += (_, _) => _galleryDirty = true;
+                watcher.EnableRaisingEvents = true;
+                _galleryWatchers.Add(watcher);
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+            {
+                AppLog.Write($"Galleria: impossibile osservare {folder}: {ex.Message}");
+            }
         }
     }
 
     private async Task LoadGalleryAsync()
     {
+        var folders = GalleryFolders;
         var folder = GalleryFolder;
         _galleryLoaded = folder;
-        WatchGallery(folder);
+        WatchGallery(folders);
         GalleryMessage.Text = "";
         if (GalleryGrid.Children.Count == 0)
         {
             GallerySkeleton.Visibility = Visibility.Visible;
             StartPulse(GallerySkeleton);
         }
-        _gallery = await Task.Run(() => Gallery.Load(folder));
+        _gallery = await Task.Run(() => Gallery.Load(folders));
         if (_galleryLoaded != folder) return;
         GalleryMessage.Text = _gallery.Count == 0 ? Strings.Get("GalleryEmpty") : "";
-        if (_gallery.Count == 0) HideGallerySkeleton();
+        GalleryOpen.IsEnabled = _gallery.Count > 0;
+        AutomationProperties.SetName(GalleryOpen, Strings.Get("ShowGallery"));
         if (_gallery.Count == 0)
         {
+            HideGallerySkeleton();
             GalleryGrid.Children.Clear();
             _galleryShown = [];
-            HideGalleryPreview();
         }
         ShowNextPicture();
     }
 
     /// <summary>
-    /// Shows the newest pictures, up to four, laid out by how many there are; the set fades in once they have opened. It
-    /// changes only when the folder does, and waits while one of them is being previewed.
+    /// Shows the newest screenshots and videos, up to four, laid out by how many there are; the set fades in once they
+    /// have opened. It changes only when the folders do.
     /// </summary>
     private void ShowNextPicture()
     {
-        if (!_prefs.ShowWidgets || !_prefs.ShowGallery || !AppWindow.IsVisible || HomePage.Visibility != Visibility.Visible) return;
-        if (ViewerOpen || _previewing is not null || IsInside(FocusManager.GetFocusedElement(Root.XamlRoot) as DependencyObject ?? Root, GalleryGrid)) return;
+        if (!_prefs.ShowWidgets || !_prefs.ShowGallery || !AppWindow.IsVisible || HomePage.Visibility != Visibility.Visible || ViewerOpen) return;
         var batch = _gallery.Newest();
         if (batch.Count == 0 || (batch.SequenceEqual(_galleryShown) && GalleryGrid.Children.Count > 0)) return;
         _galleryShown = batch;
         var request = ++_galleryRequest;
         var cells = Gallery.Layout(batch.Count);
         var scale = Math.Max(1, Root.XamlRoot?.RasterizationScale ?? 1);
-        var tiles = new List<Button>();
+        var tiles = new List<FrameworkElement>();
         var pending = batch.Count;
         void Opened()
         {
@@ -365,15 +371,9 @@ public sealed partial class MainWindow
         }
         for (var index = 0; index < batch.Count; index++)
         {
-            var path = batch[index];
             var cell = cells[index];
-            var wide = cell.ColumnSpan == 2 ? 460 : 230;
-            BitmapImage picture;
-            try { picture = new BitmapImage { DecodePixelWidth = (int)Math.Ceiling(wide * scale), UriSource = new Uri(path) }; }
-            catch (Exception ex) when (ex is UriFormatException or ArgumentException) { Opened(); continue; }
-            picture.ImageOpened += (_, _) => Opened();
-            picture.ImageFailed += (_, args) => { AppLog.Write($"Galleria: {args.ErrorMessage}"); Opened(); };
-            tiles.Add(GalleryTile(path, picture, cell, batch.Count == 1 ? 30 : 18));
+            var width = (int)Math.Ceiling((cell.ColumnSpan == 2 ? 460 : 230) * scale);
+            tiles.Add(GalleryTile(batch[index], cell, batch.Count == 1 ? 30 : 18, width, Opened));
         }
         // The old set fades out first, so the widget never shows half of each.
         Motion.Fade(GalleryGrid, 0, 250, _prefs.ReduceMotion);
@@ -386,35 +386,60 @@ public sealed partial class MainWindow
         });
     }
 
-    private Button GalleryTile(string path, BitmapImage picture, GalleryCell cell, double corner)
+    /// <summary>One picture of the widget (not focusable: the widget is). A video shows its frame and a play sign.</summary>
+    private FrameworkElement GalleryTile(string path, GalleryCell cell, double corner, int width, Action opened)
     {
-        var image = new Border
-        {
-            CornerRadius = new CornerRadius(corner),
-            Background = new ImageBrush { ImageSource = picture, Stretch = Stretch.UniformToFill }
-        };
-        var tile = new Button
-        {
-            Style = ThemeManager.Style("TvCard"), Width = double.NaN, Height = double.NaN, CornerRadius = new CornerRadius(corner),
-            HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
-            Content = image, BorderThickness = new Thickness(0)
-        };
-        AutomationProperties.SetName(tile, Path.GetFileNameWithoutExtension(path));
+        var brush = new ImageBrush { Stretch = Stretch.UniformToFill };
+        var tile = new Grid { CornerRadius = new CornerRadius(corner), Background = ThemeManager.Brush("GlyphCircleBrush") };
+        tile.Children.Add(new Border { CornerRadius = new CornerRadius(corner), Background = brush });
         Grid.SetRow(tile, cell.Row);
         Grid.SetColumn(tile, cell.Column);
         Grid.SetRowSpan(tile, cell.RowSpan);
         Grid.SetColumnSpan(tile, cell.ColumnSpan);
-        tile.Click += (_, _) =>
+        if (Gallery.IsVideo(path))
         {
-            Sounds.Play(UiSound.Open);
-            OpenGalleryViewer(path);
-        };
-        tile.PointerEntered += (_, _) => ShowGalleryPreview(path, picture);
-        tile.PointerExited += (_, _) => HideGalleryPreview(path);
-        tile.GotFocus += (_, _) => ShowGalleryPreview(path, picture);
-        tile.LostFocus += (_, _) => HideGalleryPreview(path);
+            tile.Children.Add(new Border
+            {
+                Width = 52, Height = 52, CornerRadius = new CornerRadius(26), Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x99, 0, 0, 0)),
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                Child = new FontIcon { Glyph = "\uE768", FontSize = 22, Foreground = new SolidColorBrush(Microsoft.UI.Colors.White), Margin = new Thickness(3, 0, 0, 0) }
+            });
+            _ = LoadVideoFrameAsync(path, brush, opened);
+            return tile;
+        }
+        try
+        {
+            var picture = new BitmapImage { DecodePixelWidth = width, UriSource = new Uri(path) };
+            picture.ImageOpened += (_, _) => opened();
+            picture.ImageFailed += (_, args) => { AppLog.Write($"Galleria: {args.ErrorMessage}"); opened(); };
+            brush.ImageSource = picture;
+        }
+        catch (Exception ex) when (ex is UriFormatException or ArgumentException) { opened(); }
         return tile;
+    }
+
+    /// <summary>A video's frame for its tile, from the Windows thumbnail cache.</summary>
+    private static async Task LoadVideoFrameAsync(string path, ImageBrush brush, Action opened)
+    {
+        try
+        {
+            var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+            using var thumbnail = await file.GetThumbnailAsync(Windows.Storage.FileProperties.ThumbnailMode.VideosView, 480);
+            if (thumbnail is not null)
+            {
+                var picture = new BitmapImage();
+                await picture.SetSourceAsync(thumbnail);
+                brush.ImageSource = picture;
+            }
+        }
+        catch (Exception ex) { AppLog.Write($"Galleria: anteprima video: {ex.Message}"); }
+        finally { opened(); }
+    }
+
+    private void OnGalleryOpen(object sender, RoutedEventArgs args)
+    {
+        Sounds.Play(UiSound.Open);
+        OpenGalleryViewer(_gallery.At(0));
     }
 
     // ───────── Gallery viewer ─────────
@@ -423,11 +448,10 @@ public sealed partial class MainWindow
 
     private bool ViewerOpen => GalleryViewer.Visibility == Visibility.Visible;
 
-    /// <summary>Every picture of the folder, one at a time over the whole screen, starting from the chosen one.</summary>
-    private void OpenGalleryViewer(string path)
+    /// <summary>Every screenshot and video, one at a time over the whole screen, from the newest.</summary>
+    private void OpenGalleryViewer(string? path)
     {
-        if (_gallery.Count == 0) return;
-        HideGalleryPreview();
+        if (_gallery.Count == 0 || path is null) return;
         _viewerIndex = Math.Max(0, _gallery.IndexOf(path));
         GalleryViewer.Visibility = Visibility.Visible;
         ElementCompositionPreview.GetElementVisual(GalleryViewer).Opacity = 0;
@@ -448,9 +472,24 @@ public sealed partial class MainWindow
     private void ShowViewerPicture()
     {
         if (_gallery.At(_viewerIndex) is not { } path) return;
-        var width = (int)Math.Ceiling(1540 * Math.Max(1, Root.XamlRoot?.RasterizationScale ?? 1));
-        try { GalleryViewerImage.Source = new BitmapImage { DecodePixelWidth = width, UriSource = new Uri(path) }; }
-        catch (Exception ex) when (ex is UriFormatException or ArgumentException) { GalleryViewerImage.Source = null; }
+        StopViewerVideo();
+        if (Gallery.IsVideo(path))
+        {
+            // A video plays with its sound, so the home music steps aside meanwhile.
+            HomeMusic.Set(false, DispatcherQueue);
+            GalleryViewerImage.Source = null;
+            GalleryViewerImage.Visibility = Visibility.Collapsed;
+            GalleryViewerVideo.Visibility = Visibility.Visible;
+            GalleryViewerVideo.Source = Windows.Media.Core.MediaSource.CreateFromUri(new Uri(path));
+        }
+        else
+        {
+            GalleryViewerVideo.Visibility = Visibility.Collapsed;
+            GalleryViewerImage.Visibility = Visibility.Visible;
+            var width = (int)Math.Ceiling(1540 * Math.Max(1, Root.XamlRoot?.RasterizationScale ?? 1));
+            try { GalleryViewerImage.Source = new BitmapImage { DecodePixelWidth = width, UriSource = new Uri(path) }; }
+            catch (Exception ex) when (ex is UriFormatException or ArgumentException) { GalleryViewerImage.Source = null; }
+        }
         GalleryViewerName.Text = Path.GetFileNameWithoutExtension(path);
         GalleryViewerCount.Text = $"{_viewerIndex + 1} / {_gallery.Count}";
         var several = _gallery.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -459,13 +498,23 @@ public sealed partial class MainWindow
         AutomationProperties.SetName(GalleryViewerNext, Strings.Get("GalleryNext"));
     }
 
+    private void StopViewerVideo()
+    {
+        if (GalleryViewerVideo.Source is null) return;
+        GalleryViewerVideo.MediaPlayer?.Pause();
+        (GalleryViewerVideo.Source as IDisposable)?.Dispose();
+        GalleryViewerVideo.Source = null;
+    }
+
     private void CloseGalleryViewer()
     {
         if (!ViewerOpen) return;
         Sounds.Play(UiSound.Back);
+        StopViewerVideo();
         GalleryViewer.Visibility = Visibility.Collapsed;
         GalleryViewerImage.Source = null;
-        GalleryGrid.Children.OfType<Button>().FirstOrDefault()?.Focus(FocusState.Keyboard);
+        UpdateMusic(IsForeground);
+        GalleryOpen.Focus(FocusState.Keyboard);
     }
 
     private void OnGalleryClose(object sender, RoutedEventArgs args) => CloseGalleryViewer();
@@ -481,8 +530,8 @@ public sealed partial class MainWindow
     private void OnGalleryNext(object sender, RoutedEventArgs args) => StepGalleryViewer(1);
 
     /// <summary>
-    /// The controller in and out of the gallery: up from the dock reaches it, down or left from it goes back to the dock.
-    /// Returns true when it took care of the move.
+    /// The controller around the gallery, which is one stop: up from the dock reaches it, up again the app bar; down or
+    /// left goes back to the dock. Returns true when it took care of the move.
     /// </summary>
     private bool MoveAroundGallery(FocusNavigationDirection direction, DependencyObject focused)
     {
@@ -492,30 +541,23 @@ public sealed partial class MainWindow
                 StepGalleryViewer(direction == FocusNavigationDirection.Left ? -1 : 1);
             return true;
         }
-        var tiles = WidgetColumn.Visibility == Visibility.Visible && GalleryWidget.Visibility == Visibility.Visible
-            ? GalleryGrid.Children.OfType<Button>().ToList() : [];
+        var gallery = WidgetColumn.Visibility == Visibility.Visible && GalleryWidget.Visibility == Visibility.Visible && GalleryOpen.IsEnabled;
         var inBar = IsInside(focused, TopBar);
-        if (tiles.Count > 0 && IsInside(focused, GalleryGrid))
+        if (gallery && IsInside(focused, GalleryOpen))
         {
-            if (FocusManager.TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = GalleryGrid })) return true;
-            // Above the pictures is the app bar; below or beside them, the dock.
             if (direction == FocusNavigationDirection.Up) FocusTopBar();
-            else FocusSelection();
+            else if (direction != FocusNavigationDirection.Right) FocusSelection();
             return true;
         }
         if (direction == FocusNavigationDirection.Up && IsInside(focused, DockRow))
         {
-            if (tiles.Count == 0) { FocusTopBar(); return true; }
-            // The picture nearest the dock: the bottom-left one.
-            var target = tiles.OrderByDescending(tile => Grid.GetRow(tile) + Grid.GetRowSpan(tile)).ThenBy(Grid.GetColumn).First();
-            target.Focus(FocusState.Keyboard);
+            if (gallery) GalleryOpen.Focus(FocusState.Keyboard);
+            else FocusTopBar();
             return true;
         }
         if (inBar && direction == FocusNavigationDirection.Down)
         {
-            // From the app bar down: the top picture on the right, or the dock.
-            var top = tiles.OrderBy(tile => Grid.GetRow(tile)).ThenByDescending(tile => Grid.GetColumn(tile) + Grid.GetColumnSpan(tile)).FirstOrDefault();
-            if (top is not null) top.Focus(FocusState.Keyboard);
+            if (gallery) GalleryOpen.Focus(FocusState.Keyboard);
             else FocusSelection();
             return true;
         }
@@ -528,31 +570,6 @@ public sealed partial class MainWindow
     private void FocusTopBar()
     {
         if (FocusManager.FindFirstFocusableElement(TopBar) is Control control) control.Focus(FocusState.Keyboard);
-    }
-
-    /// <summary>The picture large beside the widgets; the rotation waits until it closes.</summary>
-    private void ShowGalleryPreview(string path, BitmapImage picture)
-    {
-        _previewing = path;
-        GalleryPreviewBrush.ImageSource = new BitmapImage
-        {
-            DecodePixelWidth = (int)Math.Ceiling(760 * Math.Max(1, Root.XamlRoot?.RasterizationScale ?? 1)), UriSource = picture.UriSource
-        };
-        if (GalleryPreview.Visibility == Visibility.Visible) return;
-        ElementCompositionPreview.GetElementVisual(GalleryPreview).Opacity = 0;
-        GalleryPreview.Visibility = Visibility.Visible;
-        Motion.Fade(GalleryPreview, 1, 220, _prefs.ReduceMotion);
-    }
-
-    /// <summary>Closes the preview, if it still shows <paramref name="path"/> (another picture may have taken its place).</summary>
-    private void HideGalleryPreview(string? path = null)
-    {
-        if (path is not null && _previewing != path) return;
-        _previewing = null;
-        GalleryPreview.Visibility = Visibility.Collapsed;
-        GalleryPreviewBrush.ImageSource = null;
-        _galleryTimer?.Stop();
-        _galleryTimer?.Start();
     }
     // ───────── Pieces ─────────
 

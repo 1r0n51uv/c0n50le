@@ -138,6 +138,54 @@ public sealed class ArtSourceTests
     }
 
     [Fact]
+    public void The_current_LaunchBox_gallery_markup_is_read()
+    {
+        // November 2026: attributes on their own lines and the size followed by the format, the weight and an edit link.
+        const string html = """
+            <a b-dnxk7ptp1m style="text-decoration: none !important;"
+               href="https://images.launchbox-app.com/r2_552d1df5.jpg"
+               data-gameimageid="20304801"
+               data-toggle="lightbox"
+               data-gallery="gallery"
+               data-title="Pok&#xE9;mon Pokopia - Box - Front Image (North America)"
+               data-footer="494 x 800 JPEG, 0.1 MB</br><a data-gameimageid='20304801' class='edit-image' href='javascript:'>Edit Image</a>">
+            """;
+        var picture = Assert.Single(Core.Catalog.ArtSources.ParseLaunchBoxGallery(html));
+        Assert.Equal("Box - Front", picture.Label);
+        var entry = Core.Catalog.LaunchBoxParser.ParseEntry("", html, "en-US");
+        Assert.Equal("https://images.launchbox-app.com/r2_552d1df5.jpg", entry.Cover?.ToString());
+    }
+
+    [Fact]
+    public void LaunchBox_entries_carry_the_badge_facts_and_more_backgrounds()
+    {
+        const string details = """
+            <meta name="description" content="A game.">
+            <time datetime="March 05, 2026">March 05, 2026</time>
+            <dt>Max Players</dt><dd>4</dd>
+            <dt>ESRB</dt><dd>E - Everyone</dd>
+            <dt>Platform</dt><dd><a href="/x">Nintendo Switch 2</a></dd>
+            <dt>Developers</dt><dd><a href="/a">Game Freak</a><a href="/b">Omega Force</a></dd>
+            <dt>Publishers</dt><dd><a href="/p">Nintendo</a></dd>
+            <dt>Genre</dt><dd><a href="/g">Life Simulation</a></dd>
+            """;
+        const string gallery = """
+            <a href="https://images.launchbox-app.com/f1.jpg" data-title="G - Fanart - Background Image" data-footer="3840 x 2160 JPEG">x</a>
+            <a href="https://images.launchbox-app.com/f2.jpg" data-title="G - Fanart - Background Image" data-footer="1920 x 1080 JPEG">x</a>
+            <a href="https://images.launchbox-app.com/s1.jpg" data-title="G - Screenshot - Gameplay Image" data-footer="1920 x 1080 JPEG">x</a>
+            <a href="https://images.launchbox-app.com/small.jpg" data-title="G - Screenshot - Gameplay Image" data-footer="640 x 360 JPEG">x</a>
+            """;
+        var entry = Core.Catalog.LaunchBoxParser.ParseEntry(details, gallery, "en-US");
+        Assert.Equal("https://images.launchbox-app.com/f1.jpg", entry.Background?.ToString());
+        Assert.Equal(["https://images.launchbox-app.com/f2.jpg", "https://images.launchbox-app.com/s1.jpg"], entry.MoreBackgrounds.Select(uri => uri.ToString()));
+        Assert.Equal("E - Everyone", entry.Info.Rating);
+        Assert.Equal("4", entry.Info.Players);
+        Assert.Equal("2026", entry.Info.Year);
+        Assert.Equal("Nintendo Switch 2", entry.Info.Platform);
+        Assert.StartsWith("Game Freak", entry.Info.Developer);
+    }
+
+    [Fact]
     public void Steam_art_lists_library_pictures_and_screenshots()
     {
         const string json = """{"620":{"success":true,"data":{"screenshots":[{"id":0,"path_full":"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/620/ss_1.jpg"},{"path_full":"https://evil.example/x.jpg"}]}}}""";

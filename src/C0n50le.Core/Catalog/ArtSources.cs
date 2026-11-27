@@ -36,7 +36,7 @@ public static class ArtSources
     public static List<ArtCandidate> ParseLaunchBoxGallery(string gallery)
     {
         var images = Regex.Matches(gallery,
-            """<a\b[^>]*href="(https://images\.launchbox-app\.com/[^"]+)"[^>]*?data-title="([^"]+)"[^>]*?data-footer="(\d+) x (\d+)""",
+            """<a\b[^>]*href="(https://images\.launchbox-app\.com/[^"]+)"[^>]*?data-title="([^"]+)"[^>]*?data-footer="(\d+) x (\d+)\b""",
             RegexOptions.IgnoreCase, Limit);
         var result = new List<ArtCandidate>();
         foreach (Match image in images)

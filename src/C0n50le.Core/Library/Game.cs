@@ -9,6 +9,20 @@ public static class GameSource
     public const string Folder = "folder";
     public const string Steam = "steam";
     public const string Epic = "epic";
+    /// <summary>A starter card the home opens with, so it is never empty: artwork and texts, nothing to start.</summary>
+    public const string Preset = "preset";
+}
+
+/// <summary>The starter cards: well-known games, matched in the catalog like any other, that can be hidden.</summary>
+public static class PresetGames
+{
+    public static IReadOnlyList<Game> All { get; } =
+    [
+        new() { Id = "preset-gta6", Name = "Grand Theft Auto VI", Source = GameSource.Preset },
+        new() { Id = "preset-fc27", Name = "EA Sports FC 27", Source = GameSource.Preset },
+        new() { Id = "preset-pokopia", Name = "Pokémon Pokopia", Source = GameSource.Preset },
+        new() { Id = "preset-control-resonant", Name = "Control Resonant", Source = GameSource.Preset }
+    ];
 }
 
 /// <summary>A game or app the home can start.</summary>
@@ -30,6 +44,9 @@ public sealed class Game
 
     [JsonIgnore]
     public bool IsManual => Source == GameSource.Manual;
+
+    [JsonIgnore]
+    public bool IsPreset => Source == GameSource.Preset;
 }
 
 /// <summary>What the home shows for a game: catalog texts and the pictures saved on disk.</summary>
@@ -56,19 +73,25 @@ public sealed class Artwork
     public string CardImage { get; set; } = "";
     /// <summary>The backgrounds chosen in the detail page, shown in turn behind the home.</summary>
     public List<string> Backgrounds { get; set; } = [];
+    /// <summary>The catalog's other wide pictures, files in the data folder, shown in turn after <see cref="Background"/>.</summary>
+    public List<string> MoreBackgrounds { get; set; } = [];
+    /// <summary>The catalog's facts for the badges under the title.</summary>
+    public Catalog.GameInfo Info { get; set; } = new();
 
     /// <summary>The backgrounds to show: the chosen ones still on disk, else the catalog's.</summary>
     public IReadOnlyList<string> BackgroundsToShow(Func<string, bool> exists)
     {
         var chosen = (Backgrounds ?? []).Where(path => path.Length > 0 && exists(path)).ToList();
         if (chosen.Count > 0) return chosen;
-        return HasCatalogMedia && Background.Length > 0 && exists(Background) ? [Background] : [];
+        if (!HasCatalogMedia || Background.Length == 0 || !exists(Background)) return [];
+        return [Background, .. (MoreBackgrounds ?? []).Where(path => path.Length > 0 && exists(path))];
     }
 
     /// <summary>Which pictures were fetched: older art (without logo and banner) is completed by itself.</summary>
     public int MediaVersion { get; set; }
 
-    public const int CurrentMediaVersion = 2;
+    // 3: more backgrounds in turn and the facts for the badges.
+    public const int CurrentMediaVersion = 3;
 
     [JsonIgnore]
     public bool NeedsMedia => !IsMatched || !HasCatalogMedia || MediaVersion < CurrentMediaVersion;

@@ -1,13 +1,23 @@
 namespace C0n50le.Core.Widgets;
 
-/// <summary>The pictures of the gallery widget: the images in a folder (and its subfolders), in a shuffled loop.</summary>
 /// <summary>A picture's place in the widget's 2×2 grid.</summary>
 public readonly record struct GalleryCell(int Row, int Column, int RowSpan, int ColumnSpan);
 
+/// <summary>
+/// What the gallery widget shows: the screenshots and videos in its folders (and their subfolders), newest first.
+/// </summary>
 public sealed class Gallery
 {
-    public static readonly IReadOnlySet<string> Extensions =
+    public static readonly IReadOnlySet<string> PictureExtensions =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp" };
+
+    public static readonly IReadOnlySet<string> VideoExtensions =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp4", ".mov", ".wmv", ".mkv", ".webm" };
+
+    public static readonly IReadOnlySet<string> Extensions =
+        new HashSet<string>(PictureExtensions.Concat(VideoExtensions), StringComparer.OrdinalIgnoreCase);
+
+    public static bool IsVideo(string path) => VideoExtensions.Contains(Path.GetExtension(path));
 
     public const int MaxPictures = 500;
 
@@ -64,11 +74,15 @@ public sealed class Gallery
     /// Reads the folder without failing on folders it may not open, the most recent pictures first (a screenshot just
     /// taken leads); a missing folder gives an empty gallery.
     /// </summary>
-    public static Gallery Load(string folder)
+    public static Gallery Load(params string[] folders)
     {
-        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder)) return new Gallery([]);
         var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.Hidden | FileAttributes.System };
-        var pictures = new DirectoryInfo(folder).EnumerateFiles("*", options)
+        var pictures = folders
+            .Where(folder => !string.IsNullOrWhiteSpace(folder) && Directory.Exists(folder))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .SelectMany(folder => new DirectoryInfo(folder).EnumerateFiles("*", options))
+            .DistinctBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)
             .Where(file => Extensions.Contains(file.Extension))
             .OrderByDescending(file => file.LastWriteTimeUtc)
             .ThenBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)

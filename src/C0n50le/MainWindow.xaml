@@ -55,8 +55,8 @@
                                            LineStackingStrategy="BlockLineHeight" VerticalAlignment="Bottom"
                                            Foreground="{StaticResource TextBrush}"/>
                             </Grid>
-                            <TextBlock Text="{x:Bind Home.HeroDetails, Mode=OneWay}" Visibility="{x:Bind Home.HasHeroDetails, Mode=OneWay}" FontSize="29" FontWeight="Medium"
-                                       Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
+                            <!-- The game's facts as badges: source, age rating, genre, year, platform, developer, players. -->
+                            <StackPanel x:Name="HeroBadges" Orientation="Horizontal" Spacing="12" Margin="0,4,0,4"/>
                             <TextBlock Text="{x:Bind Home.HeroDescription, Mode=OneWay}" Visibility="{x:Bind Home.HasHeroDescription, Mode=OneWay}" FontSize="29" FontWeight="Medium" LineHeight="36"
                                        LineStackingStrategy="BlockLineHeight" TextWrapping="Wrap" MaxLines="3" MaxWidth="900"
                                        HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextBrush}"/>
@@ -77,11 +77,15 @@
                             <ContentControl x:Name="NewsWidget" Grid.Row="1" Style="{StaticResource GlassPanel}" CornerRadius="30" Padding="28,22"/>
                             <Grid x:Name="GalleryWidget" Grid.Row="2" CornerRadius="30" Height="260" VerticalAlignment="Top" Background="{StaticResource ControlBrush}">
                                 <Border x:Name="GallerySkeleton" Background="{StaticResource GlyphCircleBrush}" Visibility="Collapsed"/>
-                                <!-- Up to four pictures; each opens a large preview while the pointer or the focus is on it. -->
-                                <Grid x:Name="GalleryGrid" RowSpacing="6" ColumnSpacing="6">
-                                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                </Grid>
+                                <!-- The newest four screenshots and videos, as one piece: selecting it opens the viewer. -->
+                                <Button x:Name="GalleryOpen" Style="{StaticResource TvCard}" Width="Auto" Height="Auto" CornerRadius="30"
+                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                        VerticalContentAlignment="Stretch" Background="Transparent" Click="OnGalleryOpen">
+                                    <Grid x:Name="GalleryGrid" RowSpacing="6" ColumnSpacing="6">
+                                        <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                    </Grid>
+                                </Button>
                                 <TextBlock x:Name="GalleryMessage" Style="{StaticResource Caption}" FontSize="21" TextWrapping="Wrap"
                                            TextAlignment="Center" HorizontalAlignment="Center" Margin="28,0"/>
                             </Grid>
@@ -129,12 +133,7 @@
                     </StackPanel>
                 </ContentControl>
 
-                <!-- The gallery picture under the pointer or the focus, large, beside the widgets. -->
-                <ContentControl x:Name="GalleryPreview" Style="{StaticResource GlassPanel}" CornerRadius="40" Padding="10"
-                                Width="760" Height="428" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,150,580,0"
-                                Visibility="Collapsed" IsHitTestVisible="False">
-                    <Border CornerRadius="30"><Border.Background><ImageBrush x:Name="GalleryPreviewBrush" Stretch="UniformToFill"/></Border.Background></Border>
-                </ContentControl>
+
                 <!-- Controller hints, only in controller mode. -->
                 <StackPanel x:Name="HomeHints" Orientation="Horizontal" Spacing="30" VerticalAlignment="Bottom" HorizontalAlignment="Left"
                             Margin="90,0,0,40" Visibility="{x:Bind Home.IsControllerMode, Mode=OneWay}">
@@ -215,8 +214,7 @@
                         <Viewbox Width="500" Height="300" HorizontalAlignment="Left">
                             <Grid x:Name="DetailsCard" Width="250" Height="150" CornerRadius="30" Background="{StaticResource ControlBrush}"/>
                         </Viewbox>
-                        <TextBlock x:Name="DetailsInfo" Style="{StaticResource Caption}" TextWrapping="Wrap" MaxWidth="500"
-                                   HorizontalAlignment="Left"/>
+                        <StackPanel x:Name="DetailsInfo" Spacing="10" MaxWidth="520" HorizontalAlignment="Left"/>
                         <StackPanel x:Name="DetailsBackgrounds" Orientation="Horizontal" Spacing="12"/>
                     </StackPanel>
                     <Grid Grid.Column="1" RowSpacing="20">
@@ -237,8 +235,10 @@
                 </Grid>
 
                 <!-- ───────── Gallery viewer: one picture large, the previous and next ones with ←/→ or the buttons ───────── -->
-                <Grid x:Name="GalleryViewer" Visibility="Collapsed" Background="#E6000000" Tapped="OnGalleryViewerTapped">
+                <Grid x:Name="GalleryViewer" Visibility="Collapsed" Background="#F2000000" Tapped="OnGalleryViewerTapped">
                     <Image x:Name="GalleryViewerImage" Stretch="Uniform" Margin="190,90,190,150"/>
+                    <MediaPlayerElement x:Name="GalleryViewerVideo" Margin="190,90,190,150" AreTransportControlsEnabled="True"
+                                        AutoPlay="True" Visibility="Collapsed"/>
                     <Button x:Name="GalleryViewerClose" Style="{StaticResource TvIconButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
                             Margin="0,48,70,0" Click="OnGalleryClose">
                         <FontIcon Glyph="&#xE711;" FontSize="24"/>

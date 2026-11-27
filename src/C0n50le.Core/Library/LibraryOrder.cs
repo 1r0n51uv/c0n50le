@@ -13,8 +13,14 @@ public static class LibraryOrder
     {
         var manualPaths = preferences.Manual.Select(game => game.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var hidden = preferences.Hidden.ToHashSet(StringComparer.Ordinal);
-        return preferences.Manual
-            .Concat(detected.Where(game => !manualPaths.Contains(game.Path)))
+        var real = preferences.Manual.Concat(detected.Where(game => !manualPaths.Contains(game.Path))).ToList();
+        // A starter card gives way to the same game once it is really on the PC.
+        var titles = real.Select(game => Catalog.LaunchBoxParser.Normalize(DisplayTitle(game, preferences.Art.GetValueOrDefault(game.Id)))).ToHashSet();
+        var presets = preferences.ShowPresets
+            ? PresetGames.All.Where(preset => !titles.Contains(Catalog.LaunchBoxParser.Normalize(DisplayTitle(preset, preferences.Art.GetValueOrDefault(preset.Id)))))
+            : [];
+        return real
+            .Concat(presets)
             .DistinctBy(game => game.Id)
             .Where(game => !hidden.Contains(game.Id))
             .OrderByDescending(game => preferences.Played.TryGetValue(game.Id, out var when) ? when : DateTimeOffset.MinValue)
@@ -26,7 +32,7 @@ public static class LibraryOrder
     public static List<Game> HiddenGames(Preferences preferences, IEnumerable<Game> detected)
     {
         var hidden = preferences.Hidden.ToHashSet(StringComparer.Ordinal);
-        return preferences.Manual.Concat(detected).DistinctBy(game => game.Id).Where(game => hidden.Contains(game.Id))
+        return preferences.Manual.Concat(detected).Concat(PresetGames.All).DistinctBy(game => game.Id).Where(game => hidden.Contains(game.Id))
             .OrderBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 

@@ -105,7 +105,7 @@ public sealed class LibraryTests : IDisposable
     [Fact]
     public void Library_order_puts_recently_played_first_and_leaves_hidden_out()
     {
-        var preferences = new Preferences();
+        var preferences = new Preferences { ShowPresets = false };
         var a = new Game { Id = "a", Name = "Alpha", Path = @"C:\a.exe", Source = GameSource.Folder };
         var b = new Game { Id = "b", Name = "Beta", Path = @"C:\b.exe", Source = GameSource.Folder };
         var c = new Game { Id = "c", Name = "Gamma", Path = @"C:\c.exe", Source = GameSource.Folder };
@@ -120,7 +120,7 @@ public sealed class LibraryTests : IDisposable
     [Fact]
     public void Library_order_lets_a_manual_game_win_over_a_found_one_with_the_same_exe()
     {
-        var preferences = new Preferences();
+        var preferences = new Preferences { ShowPresets = false };
         preferences.Manual.Add(new Game { Id = "m", Name = "Mine", Path = @"C:\Games\x.exe" });
         var found = new Game { Id = "auto", Name = "Found", Path = @"c:\games\X.EXE", Source = GameSource.Folder };
         var order = LibraryOrder.Build(preferences, [found]);
@@ -135,5 +135,24 @@ public sealed class LibraryTests : IDisposable
         var art = new Artwork { CatalogId = "launchbox:1", CatalogTitle = "Pokémon Pokopia" };
         Assert.Equal("Pokémon Pokopia", LibraryOrder.DisplayTitle(game, art));
         Assert.Equal("Pokémon Pokopia", LibraryOrder.SearchTitle(game, art));
+    }
+
+    [Fact]
+    public void Starter_cards_fill_the_home_and_give_way_to_the_real_game()
+    {
+        var empty = new Preferences();
+        Assert.Equal(PresetGames.All.Select(game => game.Id).OrderBy(id => id), LibraryOrder.Build(empty, []).Select(game => game.Id).OrderBy(id => id));
+
+        var installed = new Game { Id = "real", Name = "Pokémon Pokopia", Path = @"C:\Games\Pokopia.exe", Source = GameSource.Manual };
+        var withGame = new Preferences { Manual = [installed] };
+        var built = LibraryOrder.Build(withGame, []);
+        Assert.Contains(built, game => game.Id == "real");
+        Assert.DoesNotContain(built, game => game.Id == "preset-pokopia");
+
+        var hidden = new Preferences { Hidden = ["preset-gta6"] };
+        Assert.DoesNotContain(LibraryOrder.Build(hidden, []), game => game.Id == "preset-gta6");
+        Assert.Contains(LibraryOrder.HiddenGames(hidden, []), game => game.Id == "preset-gta6");
+
+        Assert.Empty(LibraryOrder.Build(new Preferences { ShowPresets = false }, []));
     }
 }

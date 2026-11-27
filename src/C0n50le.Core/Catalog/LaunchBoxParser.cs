@@ -15,7 +15,27 @@ public sealed record CatalogMatch(string Title, Uri Page, string Platform = "")
 /// <summary>What the catalog has for one game: its texts and where its pictures are.</summary>
 /// <remarks>Logo is the transparent "Clear Logo" laid over the background on a card; Banner a wide picture with the title.</remarks>
 public sealed record CatalogEntry(string Description, Uri? Cover, Uri? Background, double CoverAspect, string[] Details,
-    Uri? Logo = null, Uri? Banner = null);
+    Uri? Logo = null, Uri? Banner = null)
+{
+    /// <summary>More wide pictures (fanart, gameplay), shown in turn behind the home after the main one.</summary>
+    public Uri[] MoreBackgrounds { get; init; } = [];
+    /// <summary>The facts the home shows as badges: genre, year, developer, age rating, players, platform.</summary>
+    public GameInfo Info { get; init; } = new();
+}
+
+/// <summary>A game's facts from the catalog, each blank when unknown.</summary>
+public sealed record GameInfo
+{
+    public string Genre { get; init; } = "";
+    public string Year { get; init; } = "";
+    public string Developer { get; init; } = "";
+    public string Publisher { get; init; } = "";
+    /// <summary>The ESRB rating as LaunchBox gives it ("E - Everyone", "M - Mature"…).</summary>
+    public string Rating { get; init; } = "";
+    public string Players { get; init; } = "";
+    public string Platform { get; init; } = "";
+    public bool IsEmpty => Genre.Length + Year.Length + Developer.Length + Rating.Length + Players.Length == 0;
+}
 
 /// <summary>
 /// Reads the pages of the public LaunchBox Games Database (search results, game details, image gallery). Pure, so it is
@@ -48,7 +68,7 @@ public static class LaunchBoxParser
     public static CatalogEntry ParseEntry(string details, string gallery, string language)
     {
         var images = Regex.Matches(gallery,
-            """<a\b[^>]*href="(https://images\.launchbox-app\.com/[^"]+)"[^>]*?data-title="([^"]+)"[^>]*?data-footer="(\d+) x (\d+)""",
+            """<a\b[^>]*href="(https://images\.launchbox-app\.com/[^"]+)"[^>]*?data-title="([^"]+)"[^>]*?data-footer="(\d+) x (\d+)\b""",
             RegexOptions.IgnoreCase, Limit);
         var media = new List<Image>();
         foreach (Match image in images)
@@ -85,7 +105,22 @@ public static class LaunchBoxParser
             .ThenByDescending(image => image.Width).FirstOrDefault();
         var banner = media.Where(image => image.HasType("Steam Banner") || image.HasType("Banner"))
             .OrderByDescending(image => image.HasType("Steam Banner")).ThenByDescending(image => image.Width).FirstOrDefault();
-        return new CatalogEntry(Text(description), cover?.Url, background?.Url, cover?.Aspect ?? 0, metadata, logo?.Url, banner?.Url);
+        // The other wide pictures, for the home to show in turn: fanart first, then gameplay, the largest first.
+        var more = media.Where(image => image.Width >= image.Height * 1.4 && image.Width >= 1280 && image.Url != background?.Url
+                && (image.HasType("Fanart - Background") || image.HasType("Screenshot - Gameplay")))
+            .OrderByDescending(image => image.HasType("Fanart - Background"))
+            .ThenByDescending(image => image.Width)
+            .Select(image => image.Url).Distinct().Take(4).ToArray();
+        var info = new GameInfo
+        {
+            Genre = Genres(Detail(details, "Genre"), language), Year = year, Developer = developer,
+            Publisher = Detail(details, "Publishers"), Rating = Detail(details, "ESRB"), Players = Detail(details, "Max Players"),
+            Platform = Detail(details, "Platform")
+        };
+        return new CatalogEntry(Text(description), cover?.Url, background?.Url, cover?.Aspect ?? 0, metadata, logo?.Url, banner?.Url)
+        {
+            MoreBackgrounds = more, Info = info
+        };
     }
 
     public static bool IsDetailsPage(Uri page) =>

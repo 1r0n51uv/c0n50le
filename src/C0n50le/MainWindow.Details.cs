@@ -73,9 +73,13 @@ public sealed partial class MainWindow
         DetailsSubtitle.Text = Strings.Get("GameDetails");
         DetailsCard.Children.Clear();
         DetailsCard.Children.Add(CardContent(title, art, _session?.Game.Id == game.Id));
-        var info = new List<string> { SourceLabel(game.Source) };
-        if (art.IsMatched) info.AddRange(art.Details);
-        DetailsInfo.Text = string.Join("  ·  ", info);
+        // Beside the card the facts go one per line, without the dots.
+        DetailsInfo.Children.Clear();
+        foreach (var fact in GameBadges.For(game, art, SourceLabel(game.Source), 22).Where(item => item is not TextBlock { Text: "·" }))
+        {
+            fact.HorizontalAlignment = HorizontalAlignment.Left;
+            DetailsInfo.Children.Add(fact);
+        }
         DetailsBackgrounds.Children.Clear();
         foreach (var path in art.BackgroundsToShow(File.Exists).Take(5))
             DetailsBackgrounds.Children.Add(new Grid
@@ -144,7 +148,7 @@ public sealed partial class MainWindow
         var title = DescriptionTitle(game, art);
         var language = Strings.Language;
         var key = language + "|" + title;
-        var result = await _descriptions.FindDescriptionAsync(title, game.SteamId, language, _descriptionLifetime.Token);
+        var result = await FindDescriptionAsync(game, title, language, _descriptionLifetime.Token);
         if (result.Text.Length == 0)
         {
             if (!quiet) ShowToast(Strings.Get("DescriptionNotFound"));

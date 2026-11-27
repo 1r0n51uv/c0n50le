@@ -14,6 +14,10 @@ public sealed class Preferences
     public string GamesFolder { get; set; } = "";
     public bool ScanSteam { get; set; } = true;
     public bool ScanEpic { get; set; } = true;
+    /// <summary>The starter cards (well-known games to look at) next to your own.</summary>
+    public bool ShowPresets { get; set; } = true;
+    /// <summary>Italian descriptions translated from LaunchBox on this PC (the model is downloaded once).</summary>
+    public bool OfflineTranslation { get; set; } = true;
     public List<Game> Manual { get; set; } = [];
     public List<string> Hidden { get; set; } = [];
     public Dictionary<string, string> Watched { get; set; } = [];
@@ -152,7 +156,7 @@ public sealed class Preferences
     {
         if (!Directory.Exists(artFolder)) return 0;
         var used = Art.Values.SelectMany(art => new[] { art.Card, art.Background, art.Logo, art.Banner, art.CardImage }
-                .Concat(art.Backgrounds ?? []))
+                .Concat(art.Backgrounds ?? []).Concat(art.MoreBackgrounds ?? []))
             .Where(path => path.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var removed = 0;
         foreach (var file in Directory.GetFiles(artFolder))

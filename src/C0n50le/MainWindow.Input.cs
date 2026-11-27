@@ -249,8 +249,7 @@ public sealed partial class MainWindow
         if (MenuOpen) { CloseMenu(); return; }
         if (SystemPage.Visibility == Visibility.Visible) { GoBackInSystem(); return; }
         if (DetailsOpen) { CloseDetails(); return; }
-        Sounds.Play(UiSound.Back);
-        HideHome();
+        // On the home itself Back does nothing: leaving it is the app bar's or the shortcut's job, never a stray B.
     }
 
     private void OpenOptions()

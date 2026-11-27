@@ -5,6 +5,7 @@ using C0n50le.Core.Input;
 using C0n50le.Core.Library;
 using C0n50le.Core.Localization;
 using C0n50le.Core.Theming;
+using C0n50le.Core.Translation;
 using C0n50le.Core.Widgets;
 using C0n50le.Services;
 using C0n50le.Ui;
@@ -58,7 +59,7 @@ public sealed partial class MainWindow
         TopBar.Visibility = Visibility.Visible;
         HomeHints.Visibility = Home.IsControllerMode ? Visibility.Visible : Visibility.Collapsed;
         Motion.Fade(PageDim, 0, 220, _prefs.ReduceMotion);
-        _padName = _padButtons = _wakeValue = null;
+        _padName = _padButtons = _wakeValue = _translatorValue = null;
         DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, FocusSelection);
     }
 
@@ -149,7 +150,7 @@ public sealed partial class MainWindow
     private void RenderRows(int? focusRow = null)
     {
         Rows.Children.Clear();
-        _padName = _padButtons = _wakeValue = null;
+        _padName = _padButtons = _wakeValue = _translatorValue = null;
         CategoryTitle.Text = Strings.Get(SystemCategories[_category].Key);
         RowFooter.Text = "";
         switch (SystemCategories[_category].Key)
@@ -209,6 +210,7 @@ public sealed partial class MainWindow
         ActionRow("AddGame", "AddGameBody", "", AddGameAsync);
         Toggle("ScanSteam", "ScanSteamBody", _prefs.ScanSteam, on => { _prefs.ScanSteam = on; _ = LoadLibraryAsync(); });
         Toggle("ScanEpic", "ScanEpicBody", _prefs.ScanEpic, on => { _prefs.ScanEpic = on; _ = LoadLibraryAsync(); });
+        Toggle("ShowPresets", "ShowPresetsBody", _prefs.ShowPresets, on => { _prefs.ShowPresets = on; _ = LoadLibraryAsync(); });
         ActionRow("Rescan", "RescanBody", Strings.Format("GamesCount", _games.Count), async () =>
         {
             _fetched.Clear();
@@ -559,6 +561,41 @@ public sealed partial class MainWindow
             _prefs.Language = values[index];
             Strings.Use(Strings.Resolve(_prefs.Language));
         });
+        Toggle("OfflineTranslation", "OfflineTranslationBody", _prefs.OfflineTranslation, on =>
+        {
+            _prefs.OfflineTranslation = on;
+            if (on) _ = InstallTranslatorAsync(quiet: false);
+        });
+        var translator = Row("Translator", "TranslatorBody", TranslatorValue(), chevron: true);
+        _translatorValue = (TextBlock)translator.Tag;
+        translator.Click += (_, _) =>
+        {
+            Sounds.Play(UiSound.Confirm);
+            if (_translation.IsDownloading) return;
+            if (!_translation.IsInstalled)
+            {
+                _ = InstallTranslatorAsync(quiet: false);
+                return;
+            }
+            OpenMenu([new(Strings.Get("TranslatorRemove"), "\uE74D", Action: () =>
+            {
+                _translation.Remove();
+                Rerender();
+                return Task.CompletedTask;
+            })], translator, translator);
+        };
+    }
+
+    private TextBlock? _translatorValue;
+
+    private string TranslatorValue() =>
+        _translation.IsDownloading ? Strings.Format("TranslatorProgress", (int)Math.Round(_translation.Progress * 100))
+        : _translation.IsInstalled ? Strings.Get("TranslatorInstalled")
+        : Strings.Format("TranslatorDownload", TranslationModel.ApproximateBytes / 1_000_000);
+
+    private void UpdateTranslatorRow()
+    {
+        if (_translatorValue is not null) _translatorValue.Text = TranslatorValue();
     }
 
     // ───────── Rows ─────────

@@ -109,6 +109,27 @@ public sealed class GameSession : IDisposable
 
     public bool Resume() => _window != 0 && NativeWindows.BringForward(_window);
 
+    /// <summary>The game's processes (and those they started), the ones whose sound is the game's.</summary>
+    public IReadOnlyCollection<int> ProcessIds()
+    {
+        var ids = new HashSet<int>();
+        try
+        {
+            if (_game is { HasExited: false } game)
+            {
+                ids.Add(game.Id);
+                ids.UnionWith(NativeWindows.ProcessDescendants(game.Id));
+            }
+            if (_launcher is { HasExited: false } launcher && Game.LaunchUri.Length == 0)
+            {
+                ids.Add(launcher.Id);
+                ids.UnionWith(NativeWindows.ProcessDescendants(launcher.Id));
+            }
+        }
+        catch (InvalidOperationException) { }
+        return ids;
+    }
+
     /// <summary>Asks the game to close, like its window's close button.</summary>
     public bool RequestClose()
     {

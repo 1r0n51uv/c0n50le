@@ -26,6 +26,7 @@ public sealed partial class MainWindow
     private readonly List<Tile> _tiles = [];
     private readonly HashSet<string> _fetched = [];
     private readonly DescriptionFinder _descriptions = new(Updater.CurrentVersion);
+    private TranslationService _translation = null!;
     private readonly HashSet<string> _descriptionRequests = [];
     private readonly CancellationTokenSource _descriptionLifetime = new();
     private List<Game> _games = [];
@@ -320,6 +321,7 @@ public sealed partial class MainWindow
         HeroTitleText.Visibility = Visibility.Visible;
         Home.HeroTitle = title;
         Home.HeroDetails = "";
+        HeroBadges.Children.Clear();
         Home.HeroDescription = description;
         // Their own default picture behind them instead of the last game's.
         _heroBackgrounds = [];
@@ -356,6 +358,7 @@ public sealed partial class MainWindow
         if (game is not null) details.Add(SourceLabel(game.Source));
         if (art?.IsMatched == true) details.AddRange(art.Details);
         Home.HeroDetails = string.Join("  ·  ", details);
+        ShowBadges(HeroBadges, game is null ? [] : GameBadges.For(game, art, SourceLabel(game.Source), 27));
         RefreshDescription(game);
         var running = game is not null && _session?.Game.Id == game.Id;
         Home.IsRunning = _session is not null;
@@ -378,6 +381,12 @@ public sealed partial class MainWindow
         if (fetch) ScheduleArtwork(game);
     }
 
+    private static void ShowBadges(Panel panel, IEnumerable<FrameworkElement> badges)
+    {
+        panel.Children.Clear();
+        foreach (var badge in badges) panel.Children.Add(badge);
+    }
+
     private static string DescriptionTitle(Game game, Artwork? art) =>
         art is { IsMatched: true, CatalogTitle.Length: > 0 } ? art.CatalogTitle : LibraryOrder.SearchTitle(game, art);
 
@@ -389,14 +398,53 @@ public sealed partial class MainWindow
         var language = Strings.Language;
         var title = DescriptionTitle(game, art);
         var key = language + "|" + title;
+        // English: LaunchBox's own text. Italian: the same text translated on this PC, once the translator is there.
+        if (language == Strings.English && art is { IsMatched: true, Description.Length: > 0 })
+        {
+            Home.HeroDescription = art.Description;
+            return;
+        }
+        var translatable = WillTranslate(art, language);
         if (art.Descriptions.TryGetValue(key, out var cached))
         {
             Home.HeroDescription = cached.Text;
-            return;
+            if (!translatable || cached.SourceName.StartsWith("LaunchBox", StringComparison.Ordinal)) return;
         }
-        if (language == Strings.English && art.IsMatched) Home.HeroDescription = art.Description;
         if (_descriptionRequests.Add(game.Id + "|" + key))
             _ = FetchDescriptionAsync(game, title, language, key);
+    }
+
+    private bool WillTranslate(Artwork art, string language) =>
+        language.StartsWith("it", StringComparison.OrdinalIgnoreCase) && art is { IsMatched: true, Description.Length: > 0 }
+        && _translation.IsInstalled;
+
+    /// <summary>
+    /// The description in <paramref name="language"/>: LaunchBox's English translated offline when it can be, else the
+    /// online sources (Wikipedia, Steam, Microsoft Store).
+    /// </summary>
+    private async Task<LocalizedDescription> FindDescriptionAsync(Game game, string title, string language, CancellationToken token)
+    {
+        var art = _prefs.ArtFor(game);
+        if (language.StartsWith("it", StringComparison.OrdinalIgnoreCase) && art is { IsMatched: true, Description.Length: > 0 })
+        {
+            if (!_translation.IsInstalled) _ = InstallTranslatorAsync(quiet: true);
+            else if (await _translation.TranslateAsync(art.Description, token) is { Length: > 0 } italian)
+                return new(italian, art.CatalogUrl, "LaunchBox · " + Strings.Get("TranslatedOffline"));
+        }
+        return await _descriptions.FindDescriptionAsync(title, game.SteamId, language, token);
+    }
+
+    /// <summary>Downloads the offline translator, then translates what is on screen.</summary>
+    private async Task InstallTranslatorAsync(bool quiet)
+    {
+        if (_translation.IsInstalled || _translation.IsDownloading || (quiet && !_prefs.OfflineTranslation)) return;
+        if (!quiet) ShowToast(Strings.Get("TranslatorDownloading"));
+        var ok = await _translation.EnsureInstalledAsync(_descriptionLifetime.Token);
+        if (_exiting) return;
+        ShowToast(Strings.Get(ok ? "TranslatorReady" : "TranslatorFailed"));
+        if (!ok) return;
+        _descriptionRequests.Clear();
+        if (!_heroShowsAction) RefreshDescription(SelectedGame);
     }
 
     private async Task FetchDescriptionAsync(Game game, string title, string language, string key)
@@ -409,7 +457,7 @@ public sealed partial class MainWindow
                 _descriptionRequests.Remove(game.Id + "|" + key);
                 return;
             }
-            var result = await _descriptions.FindDescriptionAsync(title, game.SteamId, language, _descriptionLifetime.Token);
+            var result = await FindDescriptionAsync(game, title, language, _descriptionLifetime.Token);
             if (_exiting || result.Text.Length == 0) return;
             _prefs.ArtFor(game).Descriptions[key] = result;
             Save();
@@ -427,6 +475,7 @@ public sealed partial class MainWindow
         GameSource.Steam => "Steam",
         GameSource.Epic => "Epic Games",
         GameSource.Folder => Strings.Get("SourceFolder"),
+        GameSource.Preset => Strings.Get("SourcePreset"),
         _ => Strings.Get("SourceManual")
     };
 
@@ -484,8 +533,10 @@ public sealed partial class MainWindow
         {
             if (_backdropRequest != request || _exiting) return;
             _frontBackdrop = layer;
-            Motion.Fade(layer, 1f, 600, _prefs.ReduceMotion);
-            if (old is not null && old != layer) Motion.Fade(old, 0, 600, _prefs.ReduceMotion);
+            // A slow cross-fade, and each picture drifts closer while it is up, so the turn never feels like a cut.
+            Motion.Fade(layer, 1f, 1400, _prefs.ReduceMotion);
+            if (old is not null && old != layer) Motion.Fade(old, 0, 1400, _prefs.ReduceMotion);
+            Motion.Drift(layer, _prefs.ReduceMotion);
         }
         bitmap.ImageOpened += (_, _) => Arrived();
         bitmap.ImageFailed += (_, _) =>
@@ -500,6 +551,13 @@ public sealed partial class MainWindow
     {
         var game = SelectedGame;
         if (game is null || IsOverlayOpen) return;
+        if (game.IsPreset)
+        {
+            // A starter card has nothing to start: say so and offer its page instead.
+            Sounds.Play(UiSound.Back);
+            ShowToast(Strings.Get("PresetNotInstalled"));
+            return;
+        }
         Sounds.Play(UiSound.Confirm);
         if (_session is not null)
         {
@@ -520,6 +578,10 @@ public sealed partial class MainWindow
             _prefs.MarkPlayed(game, DateTimeOffset.Now);
             _artworkLookup?.Cancel();
             Save();
+            // The game just started goes to the front of the dock at once, like a console's home.
+            _games = LibraryOrder.Build(_prefs, _detected);
+            _selected = Math.Max(0, _games.FindIndex(entry => entry.Id == game.Id));
+            RenderCards();
             _sessionTimer?.Start();
             RefreshHero(fetch: false);
             HomeMusic.Set(false, DispatcherQueue);
@@ -541,6 +603,7 @@ public sealed partial class MainWindow
         _sessionTimer?.Stop();
         _session.Dispose();
         _session = null;
+        GameAudio.RestoreAll();
         AppLog.Write(timedOut ? "Finestra del gioco non trovata" : "Gioco chiuso");
         // The game that just closed moves to the front of the dock, like on a console.
         _games = LibraryOrder.Build(_prefs, _detected);
@@ -619,11 +682,11 @@ public sealed partial class MainWindow
     }
 
     /// <summary>The pictures of an entry, downloaded to temporary files (deleted on dispose).</summary>
-    internal sealed record CatalogFiles(string? Cover, string? Background, string? Logo, string? Banner) : IDisposable
+    internal sealed record CatalogFiles(string? Cover, string? Background, string? Logo, string? Banner, string?[] More) : IDisposable
     {
         public void Dispose()
         {
-            foreach (var file in new[] { Cover, Background, Logo, Banner })
+            foreach (var file in new[] { Cover, Background, Logo, Banner }.Concat(More))
                 if (file is not null && File.Exists(file)) File.Delete(file);
         }
     }
@@ -634,8 +697,9 @@ public sealed partial class MainWindow
         var background = TryDownload(entry.Background, token);
         var logo = TryDownload(entry.Logo, token);
         var banner = TryDownload(entry.Banner, token);
-        await Task.WhenAll(cover, background, logo, banner);
-        return new CatalogFiles(await cover, await background, await logo, await banner);
+        var more = Task.WhenAll(entry.MoreBackgrounds.Select(uri => TryDownload(uri, token)));
+        await Task.WhenAll(cover, background, logo, banner, more);
+        return new CatalogFiles(await cover, await background, await logo, await banner, await more);
     }
 
     private async Task<string?> TryDownload(Uri? uri, CancellationToken token)
@@ -660,6 +724,8 @@ public sealed partial class MainWindow
         art.Background = Store(files.Background, "background");
         art.Logo = Store(files.Logo, "logo");
         art.Banner = Store(files.Banner, "banner");
+        art.MoreBackgrounds = [.. files.More.Select((file, index) => Store(file, "background" + (index + 2))).Where(path => path.Length > 0)];
+        art.Info = entry.Info;
         art.CoverAspect = art.Card.Length > 0 ? entry.CoverAspect : 0;
         art.HasCatalogMedia = true;
         art.MediaVersion = Artwork.CurrentMediaVersion;
@@ -701,6 +767,25 @@ internal static class Motion
         animation.InsertKeyFrame(1, target);
         animation.Duration = TimeSpan.FromMilliseconds(milliseconds);
         visual.StartAnimation("Opacity", animation);
+    }
+
+    /// <summary>A background drifts slowly closer (6% over 12 s, easing out) while it is on screen.</summary>
+    public static void Drift(FrameworkElement element, bool reduce)
+    {
+        var visual = ElementCompositionPreview.GetElementVisual(element);
+        visual.StopAnimation("Scale");
+        if (!Enabled(reduce))
+        {
+            visual.Scale = Vector3.One;
+            return;
+        }
+        visual.CenterPoint = new Vector3((float)element.ActualWidth / 2, (float)element.ActualHeight / 2, 0);
+        var compositor = visual.Compositor;
+        var scale = compositor.CreateVector3KeyFrameAnimation();
+        scale.InsertKeyFrame(0, new Vector3(1.06f, 1.06f, 1));
+        scale.InsertKeyFrame(1, Vector3.One, compositor.CreateCubicBezierEasingFunction(new Vector2(0.2f, 0), new Vector2(0.2f, 1)));
+        scale.Duration = TimeSpan.FromSeconds(12);
+        visual.StartAnimation("Scale", scale);
     }
 
     /// <summary>The top shelf fades in and rises a little when the focus moves to another game.</summary>

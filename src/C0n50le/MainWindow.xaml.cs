@@ -40,6 +40,8 @@ public sealed partial class MainWindow : Window
         _startMode = startMode;
         _paths = AppPaths.ForThisApp();
         AppLog.UseFile(_paths.LogFile);
+        _translation = new TranslationService(_paths.Data);
+        _translation.Changed += () => DispatcherQueue.TryEnqueue(UpdateTranslatorRow);
         CursorHider.Initialize(_paths.Data);
         try { _prefs = Preferences.Load(_paths.PreferencesFile); }
         catch (Exception ex)
@@ -172,6 +174,9 @@ public sealed partial class MainWindow : Window
     {
         var active = args.WindowActivationState != WindowActivationState.Deactivated;
         UpdateMusic(active);
+        // With a game running, the home in front silences it and plays its own music; back to the game, the reverse.
+        if (_session is { } session) GameAudio.Set(session.ProcessIds(), mute: active && AppWindow.IsVisible);
+        else if (!active) GameAudio.RestoreAll();
         if (!active) RestoreCursor();
         else
         {
@@ -210,7 +215,9 @@ public sealed partial class MainWindow : Window
         }
         _recordingIndicator?.Close();
         _recordingIndicator = null;
-        _galleryWatcher?.Dispose();
+        foreach (var watcher in _galleryWatchers) watcher.Dispose();
+        GameAudio.RestoreAll();
+        _translation.Dispose();
         _pollTimer?.Stop();
         _sessionTimer?.Stop();
         _backdropTimer?.Stop();
