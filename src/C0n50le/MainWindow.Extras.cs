@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Numerics;
 using C0n50le.Core.Audio;
+using C0n50le.Core.Updates;
 using C0n50le.Core.Input;
 using C0n50le.Core.Localization;
 using C0n50le.Core.Startup;
@@ -18,7 +19,6 @@ public sealed partial class MainWindow
     private bool TourVisible => TourLayer.Visibility == Visibility.Visible;
     private int _tourIndex;
     private DispatcherQueueTimer? _tourTimer;
-    private bool _checkingUpdates;
 
     // ───────── Intro ─────────
 
@@ -45,6 +45,7 @@ public sealed partial class MainWindow
         UpdateMusic(IsForeground);
         FocusSelection();
         OfferTour();
+        TryPromptPendingUpdate();
     }
 
     private void AnimateIntro()
@@ -177,6 +178,7 @@ public sealed partial class MainWindow
         Save();
         Sounds.Play(UiSound.Back);
         FocusSelection();
+        TryPromptPendingUpdate();
     }
 
     private void OnTourNextClick(object sender, RoutedEventArgs e) => TourAdvance();
@@ -184,10 +186,12 @@ public sealed partial class MainWindow
     private void OnTourSkipClick(object sender, RoutedEventArgs e) => EndTour();
 
     // ───────── Updates ─────────
+    private bool _checkingUpdates;
+    private UpdateOffer? _pendingUpdate;
 
     private async Task CheckUpdatesAsync(bool interactive)
     {
-        if (_checkingUpdates) return;
+        if (_checkingUpdates || (!interactive && !_prefs.CheckUpdates)) return;
         _checkingUpdates = true;
         try
         {
@@ -195,25 +199,60 @@ public sealed partial class MainWindow
             var update = await Updater.FindAsync(_prefs.BetaUpdates, _paths.Installed);
             if (update is null)
             {
+                _pendingUpdate = null;
                 if (interactive) ShowToast(Strings.Format("UpToDate", Updater.CurrentVersion));
                 return;
             }
+            if (!interactive && (!_prefs.CheckUpdates || update.Tag == _prefs.IgnoredUpdate)) return;
             AppLog.Write($"Aggiornamento disponibile: {update.Tag}");
             if (_session is not null || !IsForeground || IsOverlayOpen || IntroVisible)
             {
+                _pendingUpdate = update;
                 ShowToast(Strings.Format("UpdateAvailable", update.Tag));
-                if (!interactive) return;
+                DispatcherQueue.TryEnqueue(TryPromptPendingUpdate);
+                return;
             }
-            if (await AlertAsync(Strings.Get("UpdateTitle"), Strings.Format("UpdateBody", update.Tag), null, Strings.Get("Install"), Strings.Get("Cancel")) != 0) return;
-            ShowToast(Strings.Get("Downloading"));
-            await Updater.InstallAsync(update, _paths.Installed);
-            ExitApp();
+            await OfferUpdateAsync(update);
         }
         catch (Exception ex)
         {
             AppLog.Write($"Aggiornamenti: {ex.Message}");
             if (interactive) ShowToast(Strings.Format("UpdateFailed", ex.Message));
         }
+        finally { _checkingUpdates = false; }
+    }
+
+    private async Task OfferUpdateAsync(UpdateOffer update)
+    {
+        var choice = await AlertAsync(Strings.Get("UpdateTitle"), Strings.Format("UpdateBody", update.Tag), null,
+            Strings.Get("Install"), Strings.Get("Cancel"));
+        if (choice != 0)
+        {
+            _prefs.IgnoredUpdate = update.Tag;
+            Save();
+            return;
+        }
+        try
+        {
+            ShowToast(Strings.Get("Downloading"));
+            await Updater.InstallAsync(update, _paths.Installed);
+            ExitApp();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write($"Installazione aggiornamento: {ex.Message}");
+            ShowToast(Strings.Format("UpdateFailed", ex.Message));
+        }
+    }
+
+    private async void TryPromptPendingUpdate()
+    {
+        if (!_prefs.CheckUpdates || _pendingUpdate is null || _checkingUpdates || _session is not null || !IsForeground ||
+            IsOverlayOpen || IntroVisible || !AppWindow.IsVisible) return;
+        var update = _pendingUpdate;
+        _pendingUpdate = null;
+        _checkingUpdates = true;
+        try { await OfferUpdateAsync(update); }
         finally { _checkingUpdates = false; }
     }
 }

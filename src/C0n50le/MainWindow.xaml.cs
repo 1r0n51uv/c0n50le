@@ -28,6 +28,7 @@ public sealed partial class MainWindow : Window
     private readonly GameCatalog _catalog;
     private readonly nint _handle;
     private readonly DispatcherQueueTimer _clockTimer;
+    private readonly DispatcherQueueTimer _updateTimer;
     private readonly string? _loadProblem;
     private TrayIcon? _tray;
     private bool _exiting, _shownOnce, _started;
@@ -68,6 +69,10 @@ public sealed partial class MainWindow : Window
         _clockTimer.Tick += (_, _) => UpdateClock();
         UpdateClock();
 
+        _updateTimer = DispatcherQueue.CreateTimer();
+        _updateTimer.Interval = TimeSpan.FromHours(6);
+        _updateTimer.Tick += (_, _) => _ = CheckUpdatesAsync(interactive: false);
+
         Root.SizeChanged += (_, _) => UpdateStage();
         InitializeInput();
         InitializeLibrary();
@@ -86,6 +91,7 @@ public sealed partial class MainWindow : Window
         ReturnHotkey.Hook(_handle, () => DispatcherQueue.TryEnqueue(() => ShowHome()));
         RegisterKeyboardShortcut(report: false);
         _clockTimer.Start();
+        _updateTimer.Start();
         StartPolling();
         var show = _startMode switch
         {
@@ -109,6 +115,7 @@ public sealed partial class MainWindow : Window
         Activate();
         try { PlaceWindow(); }
         catch (Exception ex) { AppLog.Write($"Schermo intero: {ex.Message}"); }
+        UpdateInputLabel();
         NativeWindows.BringForward(_handle);
         if (firstShow) BeginIntro();
         DispatcherQueue.TryEnqueue(() =>
@@ -160,7 +167,11 @@ public sealed partial class MainWindow : Window
         var active = args.WindowActivationState != WindowActivationState.Deactivated;
         UpdateMusic(active);
         if (!active) RestoreCursor();
-        else if (_input.Mode == InputMode.Controller) HideCursor();
+        else
+        {
+            if (_input.Mode == InputMode.Controller) HideCursor();
+            DispatcherQueue.TryEnqueue(TryPromptPendingUpdate);
+        }
     }
 
     private void UpdateMusic(bool active) =>
@@ -187,6 +198,7 @@ public sealed partial class MainWindow : Window
         _pollTimer?.Stop();
         _sessionTimer?.Stop();
         _clockTimer.Stop();
+        _updateTimer.Stop();
         _feedTimer?.Stop();
         _galleryTimer?.Stop();
         _widgetRequest?.Cancel();

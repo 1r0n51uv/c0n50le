@@ -31,14 +31,16 @@ internal static class CursorHider
 
     public static void Hide(nint window)
     {
-        if (_hidden) return;
-        _hidden = true;
+        if (!_hidden)
+        {
+            _hidden = true;
+            _hiddenSteps = 0;
+            while (_hiddenSteps < 256 && ShowCursor(false) >= 0) _hiddenSteps++;
+            if (_hiddenSteps < 256) _hiddenSteps++;
+        }
         Hook(window);
         // WinUI draws into child windows (the content bridge and its input site): they get WM_SETCURSOR, not the frame.
         EnumChildWindows(window, (child, _) => { Hook(child); return true; }, 0);
-        _hiddenSteps = 0;
-        while (_hiddenSteps < 16 && ShowCursor(false) >= 0) _hiddenSteps++;
-        if (_hiddenSteps < 16) _hiddenSteps++;
         SetCursor(0);
     }
 

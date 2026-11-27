@@ -151,7 +151,52 @@ public static class ArtworkPalette
 /// <summary>The screens the home can open on.</summary>
 public static class Displays
 {
+    private const uint DisplayDeviceActive = 0x00000001;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct DisplayDevice
+    {
+        public int Size;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString;
+        public uint StateFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceId;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey;
+    }
+
+    [DllImport("user32.dll", EntryPoint = "EnumDisplayDevicesW", CharSet = CharSet.Unicode)]
+    private static extern bool EnumDisplayDevices(string? device, uint index, ref DisplayDevice displayDevice, uint flags);
+
     public sealed record Choice(string Id, string Label);
+
+    public static string ActiveLabel(DisplayArea? area, string language)
+    {
+        var displays = All();
+        var index = displays.FindIndex(display => display.DisplayId.Value == area?.DisplayId.Value);
+        var number = Math.Max(0, index);
+        var name = MonitorNames().ElementAtOrDefault(number);
+        if (string.IsNullOrWhiteSpace(name)) name = language == "it-IT" ? $"Schermo {number + 1}" : $"Display {number + 1}";
+        return $"{name} · {area?.OuterBounds.Width ?? 0}×{area?.OuterBounds.Height ?? 0}";
+    }
+
+    private static List<string> MonitorNames()
+    {
+        var names = new List<string>();
+        for (uint index = 0; index < 16; index++)
+        {
+            var adapter = new DisplayDevice { Size = Marshal.SizeOf<DisplayDevice>() };
+            if (!EnumDisplayDevices(null, index, ref adapter, 0)) break;
+            if ((adapter.StateFlags & DisplayDeviceActive) == 0) continue;
+            for (uint monitorIndex = 0; monitorIndex < 16; monitorIndex++)
+            {
+                var monitor = new DisplayDevice { Size = Marshal.SizeOf<DisplayDevice>() };
+                if (!EnumDisplayDevices(adapter.DeviceName, monitorIndex, ref monitor, 0)) break;
+                if ((monitor.StateFlags & DisplayDeviceActive) != 0 && !string.IsNullOrWhiteSpace(monitor.DeviceString))
+                    names.Add(monitor.DeviceString);
+            }
+        }
+        return names;
+    }
 
     public static List<DisplayArea> All()
     {

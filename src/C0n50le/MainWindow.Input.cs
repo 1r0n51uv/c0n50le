@@ -4,6 +4,7 @@ using C0n50le.Core.Localization;
 using C0n50le.Services;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Input;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -20,6 +21,7 @@ public sealed partial class MainWindow
     private DispatcherQueueTimer? _pollTimer;
     private int _previousHeld;
     private bool _cursorHidden;
+    private bool _topBarPointerInside;
     private ControllerState _lastPad;
 
     private void InitializeInput()
@@ -30,8 +32,19 @@ public sealed partial class MainWindow
             if (args.Pointer.PointerDeviceType != PointerDeviceType.Mouse) return;
             var point = args.GetCurrentPoint(Root).Position;
             _input.MouseMoved(point.X, point.Y, DateTimeOffset.Now);
+            UpdateTopBarPointer(point);
             if (_input.Mode == InputMode.MouseKeyboard) FocusUnderPointer(point);
         };
+        Root.PointerExited += (_, args) =>
+        {
+            if (args.Pointer.PointerDeviceType != PointerDeviceType.Mouse) return;
+            _topBarPointerInside = false;
+            UpdateTopBar();
+        };
+        SystemPill.GotFocus += (_, _) => UpdateTopBar();
+        DesktopPill.GotFocus += (_, _) => UpdateTopBar();
+        SystemPill.LostFocus += (_, _) => DispatcherQueue.TryEnqueue(UpdateTopBar);
+        DesktopPill.LostFocus += (_, _) => DispatcherQueue.TryEnqueue(UpdateTopBar);
         Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((_, args) =>
         {
             if (args.Pointer.PointerDeviceType == PointerDeviceType.Mouse) _input.MouseClicked();
@@ -73,6 +86,7 @@ public sealed partial class MainWindow
             return;
         }
         if (!IsForeground || Root.XamlRoot is null) return;
+        if (_input.Mode == InputMode.Controller) HideCursor();
         if (pad.Active)
         {
             Home.Family = pad.Family;
@@ -236,12 +250,33 @@ public sealed partial class MainWindow
         Home.InputLabel = _input.Mode == InputMode.Controller
             ? (_lastPad.Name.Length > 0 ? _lastPad.Name : Strings.Get("Controller"))
             : Strings.Get("MouseKeyboard");
+        Home.DisplayLabel = Displays.ActiveLabel(
+            DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary), Strings.Language);
+        UpdateTopBar();
+    }
+
+    private void UpdateTopBarPointer(Windows.Foundation.Point point)
+    {
+        var bounds = TopBar.TransformToVisual(Root).TransformBounds(new Windows.Foundation.Rect(0, 0, TopBar.ActualWidth, TopBar.ActualHeight));
+        _topBarPointerInside = bounds.Contains(point);
+        UpdateTopBar();
+    }
+
+    private void UpdateTopBar()
+    {
+        var focused = Root.XamlRoot is null ? null : FocusManager.GetFocusedElement(Root.XamlRoot) as DependencyObject;
+        var expanded = _topBarPointerInside ||
+                       (Home.IsControllerMode && focused is not null && IsInside(focused, TopBar));
+        if (Home.IsAppBarExpanded == expanded) return;
+        Home.IsAppBarExpanded = expanded;
+        AppBarDetails.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        TopBar.Width = expanded ? 660 : 288;
     }
 
     /// <summary>In controller mode the pointer disappears over the home; it comes back as soon as the mouse moves.</summary>
     private void HideCursor()
     {
-        if (_cursorHidden || !IsForeground) return;
+        if (!IsForeground) return;
         _cursorHidden = true;
         CursorHider.Hide(_handle);
     }

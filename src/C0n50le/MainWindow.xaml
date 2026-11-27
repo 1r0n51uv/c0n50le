@@ -96,16 +96,19 @@
                 </Grid>
 
                 <!-- Top right: one app bar of glass with the device in use, the clock, Settings and Desktop. -->
-                <ContentControl x:Name="TopBar" Style="{StaticResource GlassPanel}" CornerRadius="36" Height="72" Padding="26,0,8,0"
-                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,48,90,0">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                            <FontIcon Glyph="{x:Bind Home.InputGlyph, Mode=OneWay}" FontSize="24" Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBlock Text="{x:Bind Home.InputLabel, Mode=OneWay}" Style="{StaticResource Caption}" MaxWidth="320"
-                                       TextTrimming="CharacterEllipsis"/>
+                <ContentControl x:Name="TopBar" Style="{StaticResource GlassPanel}" CornerRadius="36" Height="72" Width="288"
+                                Padding="18,0,8,0" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,48,90,0">
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <FontIcon Glyph="{x:Bind Home.InputGlyph, Mode=OneWay}" FontSize="24" Foreground="{StaticResource TextSecondaryBrush}"
+                                  Margin="4,0,0,0"/>
+                        <StackPanel x:Name="AppBarDetails" Visibility="Collapsed" Spacing="2" VerticalAlignment="Center" Width="330">
+                            <TextBlock Text="{x:Bind Home.InputLabel, Mode=OneWay}" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{x:Bind Home.DisplayLabel, Mode=OneWay}" FontSize="15"
+                                       Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
-                        <TextBlock Text="{x:Bind Home.Clock, Mode=OneWay}" FontSize="27" FontWeight="SemiBold" VerticalAlignment="Center"
-                                   Foreground="{StaticResource TextBrush}" Margin="22,0,16,0"/>
+                        <TextBlock Text="{x:Bind Home.Clock, Mode=OneWay}" FontSize="25" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}" Margin="8,0,4,0"/>
                         <Button x:Name="SystemPill" Style="{StaticResource TvAppBarButton}" Click="OnSystemClick">
                             <FontIcon Glyph="&#xE713;" FontSize="24"/>
                         </Button>
@@ -182,8 +185,8 @@
                     <Canvas>
                     <ContentControl x:Name="MenuPanel" Style="{StaticResource GlassPanel}" CornerRadius="30" Width="460"
                                     HorizontalAlignment="Left" VerticalAlignment="Top" Tapped="OnMenuPanelTapped">
-                        <ScrollViewer MaxHeight="760" VerticalScrollBarVisibility="Hidden" IsTabStop="False">
-                            <StackPanel x:Name="MenuItems"/>
+                        <ScrollViewer MaxHeight="760" Background="Transparent" VerticalScrollBarVisibility="Hidden" IsTabStop="False">
+                            <StackPanel x:Name="MenuItems" Background="Transparent"/>
                         </ScrollViewer>
                     </ContentControl>
                     </Canvas>
@@ -223,7 +226,7 @@
                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                             <StackPanel Spacing="14" Margin="0,8,0,0">
                                 <Button x:Name="TourNext" Style="{StaticResource TvAlertButton}" Click="OnTourNextClick"/>
-                                <Button x:Name="TourSkip" Style="{StaticResource TvAlertButton}" Click="OnTourSkipClick"/>
+                                <Button x:Name="TourSkip" Style="{StaticResource TvSecondaryAlertButton}" Click="OnTourSkipClick"/>
                             </StackPanel>
                         </StackPanel>
                     </ContentControl>

@@ -10,13 +10,14 @@
     <SolidColorBrush x:Key="FocusBrush" Color="#E5FFFFFF"/>
     <SolidColorBrush x:Key="FocusTextBrush" Color="#FF000000"/>
     <SolidColorBrush x:Key="ControlBrush" Color="#FF3A3A3C"/>
+    <SolidColorBrush x:Key="CancelBrush" Color="#FFB3261E"/>
     <SolidColorBrush x:Key="MaterialStrokeBrush" Color="#1AFFFFFF"/>
     <SolidColorBrush x:Key="ScrimBrush" Color="#80000000"/>
     <SolidColorBrush x:Key="SeparatorBrush" Color="#26FFFFFF"/>
     <SolidColorBrush x:Key="GlyphCircleBrush" Color="#1AFFFFFF"/>
     <SolidColorBrush x:Key="DimBrush" Color="#E60F0F10"/>
     <!-- The material: acrylic that blurs the artwork behind it. Opaque when Liquid Glass is off. -->
-    <AcrylicBrush x:Key="MaterialBrush" TintColor="#1E1E1E" TintOpacity="0.55" TintLuminosityOpacity="0.7" FallbackColor="#E61E1E1E"/>
+    <AcrylicBrush x:Key="MaterialBrush" BackgroundSource="Backdrop" TintColor="#1E1E1E" TintOpacity="0.55" TintLuminosityOpacity="0.7" FallbackColor="#E61E1E1E"/>
     <!-- Liquid Glass: a soft light across the top and a lit rim, stronger with each depth. -->
     <LinearGradientBrush x:Key="SheenBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#2EFFFFFF" Offset="0"/>
@@ -209,6 +210,17 @@
         <Setter Property="CornerRadius" Value="16"/>
         <Setter Property="FontSize" Value="29"/>
         <Setter Property="FontWeight" Value="Medium"/>
+    </Style>
+
+    <!-- Cancelling is the destructive/escape action; keep it unmistakably red. -->
+    <Style x:Key="TvCancelButton" TargetType="Button" BasedOn="{StaticResource TvAlertButton}">
+        <Setter Property="Background" Value="{StaticResource CancelBrush}"/>
+    </Style>
+
+    <!-- Secondary actions such as Skip stay quiet and grey. -->
+    <Style x:Key="TvSecondaryAlertButton" TargetType="Button" BasedOn="{StaticResource TvAlertButton}">
+        <Setter Property="Background" Value="{StaticResource ControlBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
     </Style>
 
     <!-- Round icon button on the material, 64. -->

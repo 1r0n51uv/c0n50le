@@ -502,6 +502,7 @@ public sealed partial class MainWindow
         RefreshHero(fetch: false);
         if (timedOut) ShowToast(Strings.Get("WindowNotFound"));
         ShowHome();
+        TryPromptPendingUpdate();
     }
 
     private void CloseRunningGame()

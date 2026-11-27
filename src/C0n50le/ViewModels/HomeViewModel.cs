@@ -20,6 +20,8 @@ public sealed partial class HomeViewModel : ObservableObject
     [ObservableProperty] private string _inputLabel = "";
     [ObservableProperty] private string _inputGlyph = "";
     [ObservableProperty] private string _systemLabel = "";
+    [ObservableProperty] private string _displayLabel = "";
+    [ObservableProperty] private bool _isAppBarExpanded;
 
     [ObservableProperty] private InputMode _mode = InputMode.MouseKeyboard;
     [ObservableProperty] private PadFamily _family = PadFamily.Xbox;

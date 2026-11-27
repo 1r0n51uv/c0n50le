@@ -1,5 +1,5 @@
-using C0n50le.Core.Audio;
 using C0n50le.Core.Catalog;
+using C0n50le.Core.Audio;
 using C0n50le.Core.Library;
 using C0n50le.Core.Localization;
 using C0n50le.Services;
@@ -46,15 +46,6 @@ public sealed partial class MainWindow
         entries.Add(MenuEntry.Divider);
         entries.Add(new(Strings.Get("EditGame"), "", Action: () => EditGameAsync(game)));
         entries.Add(new(Strings.Get("SearchArtwork"), "", Action: () => SearchArtworkAsync(game)));
-        var art = _prefs.Art.GetValueOrDefault(game.Id);
-        if (art?.Descriptions.GetValueOrDefault(Strings.Language + "|" + DescriptionTitle(game, art)) is { } description
-            && Uri.TryCreate(description.SourceUrl, UriKind.Absolute, out var source) && source.Scheme == "https")
-        {
-            entries.Add(new(Strings.Get("DescriptionCredits"), Action: async () =>
-            {
-                await Windows.System.Launcher.LaunchUriAsync(source);
-            }));
-        }
         entries.Add(MenuEntry.Divider);
         entries.Add(new(Strings.Get("HideGame"), "", Action: () =>
         {
@@ -185,6 +176,7 @@ public sealed partial class MainWindow
         _menuOrigin = null;
         if (origin is not null && origin.Visibility == Visibility.Visible && IsInside(origin, ActiveLayer)) origin.Focus(FocusState.Keyboard);
         else FocusFirst(ActiveLayer);
+        TryPromptPendingUpdate();
     }
 
     // ───────── Alert ─────────
@@ -208,7 +200,8 @@ public sealed partial class MainWindow
         for (var index = 0; index < buttons.Length; index++)
         {
             var choice = index;
-            var button = new Button { Style = ThemeManager.Style("TvAlertButton"), Content = buttons[index] };
+            var style = buttons[index] == Strings.Get("Cancel") ? "TvCancelButton" : "TvAlertButton";
+            var button = new Button { Style = ThemeManager.Style(style), Content = buttons[index] };
             button.Click += (_, _) =>
             {
                 Sounds.Play(UiSound.Confirm);
@@ -235,6 +228,7 @@ public sealed partial class MainWindow
             _alertOrigin = null;
             if (origin is not null && origin.Visibility == Visibility.Visible && IsInside(origin, ActiveLayer)) origin.Focus(FocusState.Keyboard);
             else FocusFirst(ActiveLayer);
+            TryPromptPendingUpdate();
         }
     }
 

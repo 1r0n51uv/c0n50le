@@ -52,7 +52,7 @@ L'app usa WinUI 3 e .NET 8. Per compilarla serve il .NET SDK 8 su Windows. Per c
 ```powershell
 dotnet test tests/C0n50le.Tests
 dotnet build src/C0n50le/C0n50le.csproj -c Debug -r win-x64 -p:Platform=x64
-./build/Publish-C0n50le.ps1 -Version 0.2.0
+./build/Publish-C0n50le.ps1 -Version 0.2.1
 ```
 
 - [App WinUI 3](src/C0n50le) · [Logica applicativa](src/C0n50le.Core) · [Test xUnit](tests/C0n50le.Tests)

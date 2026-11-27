@@ -56,6 +56,7 @@ public sealed class Preferences
     // Updates
     public bool CheckUpdates { get; set; } = true;
     public bool BetaUpdates { get; set; }
+    public string IgnoredUpdate { get; set; } = "";
 
     // Language: "" follows Windows.
     public string Language { get; set; } = "";
@@ -114,6 +115,7 @@ public sealed class Preferences
         NewsFeed = (NewsFeed ?? "").Trim();
         if (NewsFeed.Length > 0 && !Widgets.News.IsValidUrl(NewsFeed)) NewsFeed = "";
         GalleryFolder = (GalleryFolder ?? "").Trim();
+        IgnoredUpdate = (IgnoredUpdate ?? "").Trim();
         if (Language is not ("" or "it-IT" or "en-US")) Language = "";
     }
 
