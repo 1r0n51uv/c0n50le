@@ -3,6 +3,14 @@ using System.Text.Json.Serialization;
 namespace C0n50le.Core.Library;
 
 /// <summary>Where a game in the library comes from.</summary>
+/// <summary>The description sources a game can be set to.</summary>
+public static class DescriptionSources
+{
+    public const string Automatic = "";
+    public const string LaunchBox = "launchbox";
+    public const string Wikipedia = "wikipedia";
+}
+
 public static class GameSource
 {
     public const string Manual = "manual";
@@ -21,7 +29,11 @@ public static class PresetGames
         new() { Id = "preset-gta6", Name = "Grand Theft Auto VI", Source = GameSource.Preset },
         new() { Id = "preset-fc27", Name = "EA Sports FC 27", Source = GameSource.Preset },
         new() { Id = "preset-pokopia", Name = "Pokémon Pokopia", Source = GameSource.Preset },
-        new() { Id = "preset-control-resonant", Name = "Control Resonant", Source = GameSource.Preset }
+        new() { Id = "preset-control-resonant", Name = "Control Resonant", Source = GameSource.Preset },
+        new() { Id = "preset-ac-shadows", Name = "Assassin's Creed Shadows", Source = GameSource.Preset },
+        new() { Id = "preset-rdr2", Name = "Red Dead Redemption 2", Source = GameSource.Preset },
+        new() { Id = "preset-ghost-of-yotei", Name = "Ghost of Yōtei", Source = GameSource.Preset },
+        new() { Id = "preset-spider-man-2", Name = "Marvel's Spider-Man 2", Source = GameSource.Preset }
     ];
 }
 
@@ -71,6 +83,14 @@ public sealed class Artwork
     public string Banner { get; set; } = "";
     /// <summary>The picture chosen for the card in the detail page; it replaces the automatic one.</summary>
     public string CardImage { get; set; } = "";
+    /// <summary>The logo chosen in the detail page; it replaces the catalog's.</summary>
+    public string LogoImage { get; set; } = "";
+    /// <summary>Where this game's description comes from: automatic (LaunchBox, translated), or Wikipedia.</summary>
+    public string DescriptionSource { get; set; } = DescriptionSources.Automatic;
+
+    /// <summary>The logo to show: the chosen one, else the catalog's (or the store's), when the file is there.</summary>
+    public string? LogoToShow(Func<string, bool> exists) =>
+        LogoImage.Length > 0 && exists(LogoImage) ? LogoImage : Logo.Length > 0 && exists(Logo) ? Logo : null;
     /// <summary>The backgrounds chosen in the detail page, shown in turn behind the home.</summary>
     public List<string> Backgrounds { get; set; } = [];
     /// <summary>The catalog's other wide pictures, files in the data folder, shown in turn after <see cref="Background"/>.</summary>

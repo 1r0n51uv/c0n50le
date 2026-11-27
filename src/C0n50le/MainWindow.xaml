@@ -46,7 +46,11 @@
                     </Grid.RowDefinitions>
                     <!-- Top shelf: the focused game, like a tvOS product screen. -->
                     <Grid x:Name="TopShelf" Padding="90,0,90,44">
-                        <StackPanel x:Name="Hero" VerticalAlignment="Bottom" HorizontalAlignment="Left" Spacing="14" MaxWidth="1000">
+                        <StackPanel x:Name="Hero" VerticalAlignment="Bottom" HorizontalAlignment="Left" Spacing="14" MaxWidth="1000"
+                                    RenderTransformOrigin="0,1">
+                            <StackPanel.RenderTransform>
+                                <ScaleTransform x:Name="HeroScale"/>
+                            </StackPanel.RenderTransform>
                             <Grid MinHeight="96">
                                 <Image x:Name="HeroLogo" MaxHeight="210" MaxWidth="660" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                                        Stretch="Uniform"/>
@@ -60,6 +64,12 @@
                             <TextBlock Text="{x:Bind Home.HeroDescription, Mode=OneWay}" Visibility="{x:Bind Home.HasHeroDescription, Mode=OneWay}" FontSize="29" FontWeight="Medium" LineHeight="36"
                                        LineStackingStrategy="BlockLineHeight" TextWrapping="Wrap" MaxLines="3" MaxWidth="900"
                                        HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextBrush}"/>
+                            <!-- While the description (or its translation) is on its way: three lines that breathe. -->
+                            <StackPanel x:Name="HeroSkeleton" Spacing="12" Visibility="Collapsed" Margin="0,6,0,0">
+                                <Border Width="860" Height="24" CornerRadius="12" HorizontalAlignment="Left" Background="{StaticResource GlyphCircleBrush}"/>
+                                <Border Width="790" Height="24" CornerRadius="12" HorizontalAlignment="Left" Background="{StaticResource GlyphCircleBrush}"/>
+                                <Border Width="520" Height="24" CornerRadius="12" HorizontalAlignment="Left" Background="{StaticResource GlyphCircleBrush}"/>
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="12" Visibility="{x:Bind Home.IsRunning, Mode=OneWay}">
                                 <Ellipse Width="12" Height="12" Fill="{StaticResource TextBrush}" VerticalAlignment="Center"/>
                                 <TextBlock Text="{x:Bind Home.HeroStatus, Mode=OneWay}" FontSize="25" FontWeight="SemiBold"
@@ -148,10 +158,6 @@
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Border Style="{StaticResource HintKey}"><TextBlock Text="{x:Bind Home.MenuGlyph, Mode=OneWay}" Style="{StaticResource HintKeyText}"/></Border>
                         <TextBlock Text="{x:Bind Home.HintSystem, Mode=OneWay}" Style="{StaticResource Caption}"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Border Style="{StaticResource HintKey}"><TextBlock Text="{x:Bind Home.BackGlyph, Mode=OneWay}" Style="{StaticResource HintKeyText}"/></Border>
-                        <TextBlock Text="{x:Bind Home.HintDesktop, Mode=OneWay}" Style="{StaticResource Caption}"/>
                     </StackPanel>
                 </StackPanel>
 

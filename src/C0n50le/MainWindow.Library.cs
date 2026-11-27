@@ -227,10 +227,14 @@ public sealed partial class MainWindow
             var title = LibraryOrder.DisplayTitle(game, art);
             var running = _session?.Game.Id == game.Id;
             AutomationProperties.SetName(tile.Card, title);
-            var key = string.Join("|", title, art?.Background, art?.Logo, art?.Banner, art?.Card, art?.CardImage, running);
+            // A card still waiting for its pictures breathes like a skeleton until they arrive (or none are found).
+            var waiting = art is not { HasCatalogMedia: true } && !File.Exists(art?.CardImage) && !_artNotFound.Contains(game.Id);
+            var key = string.Join("|", title, art?.Background, art?.Logo, art?.LogoImage, art?.Banner, art?.Card, art?.CardImage, running, waiting);
             if (tile.Card.Tag is string previous && previous == key) continue;
             tile.Card.Tag = key;
             tile.Card.Content = CardContent(title, art, running);
+            if (waiting) StartPulse(tile.Card);
+            else StopPulse(tile.Card);
         }
     }
 
@@ -245,13 +249,13 @@ public sealed partial class MainWindow
         // The picture chosen in the detail page wins over the automatic composition.
         if (LoadImage(art?.CardImage, 640) is { } chosen)
             grid.Children.Add(new Image { Source = chosen, Stretch = Stretch.UniformToFill });
-        else if (LoadImage(media?.Background, 640) is { } background && File.Exists(media!.Logo))
+        else if (LoadImage(media?.Background, 640) is { } background && media!.LogoToShow(File.Exists) is { } logoFile)
         {
             grid.Children.Add(new Image { Source = background, Stretch = Stretch.UniformToFill });
             grid.Children.Add(new Border { Background = new SolidColorBrush(Windows.UI.Color.FromArgb(60, 0, 0, 0)) });
             grid.Children.Add(new Image
             {
-                Source = LoadImage(media.Logo, 480), Stretch = Stretch.Uniform, Margin = new Thickness(26, 20, 26, 20),
+                Source = LoadImage(logoFile, 480), Stretch = Stretch.Uniform, Margin = new Thickness(26, 20, 26, 20),
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
             });
         }
@@ -358,14 +362,14 @@ public sealed partial class MainWindow
         if (game is not null) details.Add(SourceLabel(game.Source));
         if (art?.IsMatched == true) details.AddRange(art.Details);
         Home.HeroDetails = string.Join("  ·  ", details);
-        ShowBadges(HeroBadges, game is null ? [] : GameBadges.For(game, art, SourceLabel(game.Source), 27));
+        ShowBadges(HeroBadges, game is null ? [] : GameBadges.For(game, art, SourceLabel(game.Source), 29, 900));
         RefreshDescription(game);
         var running = game is not null && _session?.Game.Id == game.Id;
         Home.IsRunning = _session is not null;
         Home.HeroStatus = running ? Strings.Get("RunningResume")
             : _session is not null ? Strings.Format("OtherRunning", LibraryOrder.DisplayTitle(_session.Game, _prefs.Art.GetValueOrDefault(_session.Game.Id))) : "";
         // The game's logo in the top shelf when there is one, its name otherwise, like a tvOS product screen.
-        var logo = LoadImage(media?.Logo, 1200);
+        var logo = LoadImage(art?.LogoToShow(File.Exists), 1200);
         HeroLogo.Source = logo;
         HeroLogo.Visibility = logo is null ? Visibility.Collapsed : Visibility.Visible;
         HeroTitleText.Visibility = logo is null ? Visibility.Visible : Visibility.Collapsed;
@@ -393,25 +397,50 @@ public sealed partial class MainWindow
     private void RefreshDescription(Game? game)
     {
         Home.HeroDescription = game is null ? Strings.Get("EmptyBody") : "";
+        ShowHeroSkeleton(false);
         if (game is null) return;
         var art = _prefs.ArtFor(game);
         var language = Strings.Language;
         var title = DescriptionTitle(game, art);
         var key = language + "|" + title;
-        // English: LaunchBox's own text. Italian: the same text translated on this PC, once the translator is there.
-        if (language == Strings.English && art is { IsMatched: true, Description.Length: > 0 })
+        var wikipedia = art.DescriptionSource == DescriptionSources.Wikipedia;
+        // English: LaunchBox's own text, unless Wikipedia was chosen for this game.
+        if (!wikipedia && language == Strings.English && art is { IsMatched: true, Description.Length: > 0 })
         {
             Home.HeroDescription = art.Description;
             return;
         }
-        var translatable = WillTranslate(art, language);
+        // Italian: LaunchBox's text translated on this PC (once the translator is there), or Wikipedia when chosen.
+        var translatable = !wikipedia && WillTranslate(art, language);
         if (art.Descriptions.TryGetValue(key, out var cached))
         {
+            var fromLaunchBox = cached.SourceName.StartsWith("LaunchBox", StringComparison.Ordinal);
             Home.HeroDescription = cached.Text;
-            if (!translatable || cached.SourceName.StartsWith("LaunchBox", StringComparison.Ordinal)) return;
+            if (wikipedia ? !fromLaunchBox : !translatable || fromLaunchBox) return;
         }
-        if (_descriptionRequests.Add(game.Id + "|" + key))
+        if (_descriptionRequests.Add(game.Id + "|" + key + "|" + art.DescriptionSource))
+        {
+            // Nothing to show yet: the lines breathe until the text (or its translation) arrives.
+            if (Home.HeroDescription.Length == 0) ShowHeroSkeleton(true);
             _ = FetchDescriptionAsync(game, title, language, key);
+        }
+    }
+
+    /// <summary>The logo and the description above the cards, at the size chosen in Settings.</summary>
+    private void ApplyHeroScale() => HeroScale.ScaleX = HeroScale.ScaleY = Core.Theming.HeroSize.Nearest(_prefs.HeroScale);
+
+    private void ShowHeroSkeleton(bool show)
+    {
+        if (show)
+        {
+            HeroSkeleton.Visibility = Visibility.Visible;
+            StartPulse(HeroSkeleton);
+        }
+        else if (HeroSkeleton.Visibility == Visibility.Visible)
+        {
+            StopPulse(HeroSkeleton);
+            HeroSkeleton.Visibility = Visibility.Collapsed;
+        }
     }
 
     private bool WillTranslate(Artwork art, string language) =>
@@ -419,13 +448,16 @@ public sealed partial class MainWindow
         && _translation.IsInstalled;
 
     /// <summary>
-    /// The description in <paramref name="language"/>: LaunchBox's English translated offline when it can be, else the
-    /// online sources (Wikipedia, Steam, Microsoft Store).
+    /// The description in <paramref name="language"/>: LaunchBox's English translated offline when it can be (and
+    /// Wikipedia wasn't chosen for the game), else the online sources (Wikipedia, Steam, Microsoft Store).
     /// </summary>
     private async Task<LocalizedDescription> FindDescriptionAsync(Game game, string title, string language, CancellationToken token)
     {
         var art = _prefs.ArtFor(game);
-        if (language.StartsWith("it", StringComparison.OrdinalIgnoreCase) && art is { IsMatched: true, Description.Length: > 0 })
+        if (art.DescriptionSource != DescriptionSources.Wikipedia && language == Strings.English && art is { IsMatched: true, Description.Length: > 0 })
+            return new(art.Description, art.CatalogUrl, "LaunchBox");
+        if (art.DescriptionSource != DescriptionSources.Wikipedia
+            && language.StartsWith("it", StringComparison.OrdinalIgnoreCase) && art is { IsMatched: true, Description.Length: > 0 })
         {
             if (!_translation.IsInstalled) _ = InstallTranslatorAsync(quiet: true);
             else if (await _translation.TranslateAsync(art.Description, token) is { Length: > 0 } italian)
@@ -433,7 +465,6 @@ public sealed partial class MainWindow
         }
         return await _descriptions.FindDescriptionAsync(title, game.SteamId, language, token);
     }
-
     /// <summary>Downloads the offline translator, then translates what is on screen.</summary>
     private async Task InstallTranslatorAsync(bool quiet)
     {
@@ -454,10 +485,12 @@ public sealed partial class MainWindow
             await Task.Delay(350, _descriptionLifetime.Token);
             if (SelectedGame?.Id != game.Id || _heroShowsAction || Strings.Language != language)
             {
-                _descriptionRequests.Remove(game.Id + "|" + key);
+                _descriptionRequests.Remove(game.Id + "|" + key + "|" + _prefs.ArtFor(game).DescriptionSource);
+                ShowHeroSkeleton(false);
                 return;
             }
             var result = await FindDescriptionAsync(game, title, language, _descriptionLifetime.Token);
+            if (SelectedGame?.Id == game.Id) ShowHeroSkeleton(false);
             if (_exiting || result.Text.Length == 0) return;
             _prefs.ArtFor(game).Descriptions[key] = result;
             Save();
@@ -660,12 +693,25 @@ public sealed partial class MainWindow
             if (match is null)
             {
                 AppLog.Write($"Copertina: nessun abbinamento certo ({game.Source})");
+                ArtNotFound(game);
                 return;
             }
             await ApplyCatalogAsync(game, match, token);
         }
         catch (OperationCanceledException) { _fetched.Remove(game.Id); }
-        catch (Exception ex) { AppLog.Write($"Copertina: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            AppLog.Write($"Copertina: {ex.Message}");
+            ArtNotFound(game);
+        }
+    }
+
+    private readonly HashSet<string> _artNotFound = [];
+
+    /// <summary>No pictures for this game: its card stops waiting and shows its name.</summary>
+    private void ArtNotFound(Game game)
+    {
+        if (_artNotFound.Add(game.Id)) UpdateCards();
     }
 
     /// <summary>Downloads the entry's pictures and saves them with its texts as the game's artwork.</summary>
@@ -702,6 +748,29 @@ public sealed partial class MainWindow
         return new CatalogFiles(await cover, await background, await logo, await banner, await more);
     }
 
+    /// <summary>LaunchBox has no logo for this game: take Steam's library logo, so every card and top shelf has one.</summary>
+    private async Task FindStoreLogoAsync(Game game)
+    {
+        try
+        {
+            var art = _prefs.ArtFor(game);
+            var found = await _catalog.SteamArtAsync(game.SteamId, DescriptionTitle(game, art), _descriptionLifetime.Token);
+            if (ArtSources.For(ArtUse.Logo, found).FirstOrDefault() is not { } logo) return;
+            var file = await TryDownload(logo.Url, _descriptionLifetime.Token);
+            if (file is null) return;
+            try { art.Logo = Core.Settings.Preferences.StoreImage(_paths.ArtFolder, game.Id, "logo", file); }
+            finally { File.Delete(file); }
+            Save();
+            AppLog.Write($"Logo da Steam: {game.Id}");
+            UpdateCards();
+            if (SelectedGame?.Id == game.Id && !_heroShowsAction) RefreshHero(fetch: false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or System.Text.Json.JsonException)
+        {
+            AppLog.Write($"Logo da Steam: {ex.Message}");
+        }
+    }
+
     private async Task<string?> TryDownload(Uri? uri, CancellationToken token)
     {
         try { return await _catalog.DownloadAsync(uri, token); }
@@ -726,6 +795,7 @@ public sealed partial class MainWindow
         art.Banner = Store(files.Banner, "banner");
         art.MoreBackgrounds = [.. files.More.Select((file, index) => Store(file, "background" + (index + 2))).Where(path => path.Length > 0)];
         art.Info = entry.Info;
+        if (art.Logo.Length == 0) _ = FindStoreLogoAsync(game);
         art.CoverAspect = art.Card.Length > 0 ? entry.CoverAspect : 0;
         art.HasCatalogMedia = true;
         art.MediaVersion = Artwork.CurrentMediaVersion;

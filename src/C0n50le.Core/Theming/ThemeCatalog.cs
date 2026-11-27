@@ -32,7 +32,7 @@ public sealed record LiquidPreset(
     /// <summary>The liquid glass, dark or light: the tint keeps the text readable over bright artwork.</summary>
     // Blur is a radius in pixels; Bloom is how much of the sharp backdrop comes back (0 = fully frosted, 1 = sharp).
     public static LiquidPreset For(bool dark) =>
-        new(12, 30, 1.8, 7, 0.6, 65, 50, 0.08, 1.18, dark ? 0.32 : 0.28, dark ? -0.03 : 0.02);
+        new(9, 30, 1.8, 7, 0.6, 65, 50, 0.12, 1.18, dark ? 0.2 : 0.18, dark ? -0.03 : 0.02);
 
     /// <summary>
     /// The same level for a popup (menu, alert, notice): what is behind must not compete with its text, so it is always
@@ -105,12 +105,12 @@ public static class ThemeCatalog
     internal static byte MaterialAlpha(GlassDepth glass) => glass switch
     {
         GlassDepth.Off => 0xF5,
-        GlassDepth.Subtle => 0xA6,
-        GlassDepth.Medium => 0x70,
+        GlassDepth.Subtle => 0x80,
+        GlassDepth.Medium => 0x50,
         // Liquid: the fallback acrylic is as dense as Medium, matching the tint inside the liquid shader.
-        _ when IsLiquid(glass) => 0x70,
-        GlassDepth.Clear => 0x24,
-        _ => 0x42
+        _ when IsLiquid(glass) => 0x50,
+        GlassDepth.Clear => 0x06,
+        _ => 0x28
     };
 
     private static double Sheen(GlassDepth glass) => glass switch
@@ -126,11 +126,11 @@ public static class ThemeCatalog
     private static double Tint(GlassDepth glass) => glass switch
     {
         GlassDepth.Off => 1,
-        GlassDepth.Subtle => 0.70,
-        GlassDepth.Medium => 0.45,
-        _ when IsLiquid(glass) => 0.45,
-        GlassDepth.Clear => 0.10,
-        _ => 0.23
+        GlassDepth.Subtle => 0.50,
+        GlassDepth.Medium => 0.30,
+        _ when IsLiquid(glass) => 0.30,
+        GlassDepth.Clear => 0.02,
+        _ => 0.14
     };
 
     public static ThemeTokens Dark(GlassDepth glass) => new()
@@ -181,6 +181,15 @@ public static class ThemeCatalog
         var (h, s, _) = color.ToHsl();
         return Argb.FromHsl(h, Math.Min(s, 0.6), theme.IsLight ? 0.82 : 0.22);
     }
+}
+
+/// <summary>The size of the game's logo and description above the cards.</summary>
+public static class HeroSize
+{
+    public static IReadOnlyList<double> Choices { get; } = [0.8, 0.9, 1.0, 1.15, 1.3];
+
+    public static double Nearest(double value) =>
+        double.IsFinite(value) ? Choices.MinBy(choice => Math.Abs(choice - value)) : 1.0;
 }
 
 /// <summary>The interface scale, so the home reads well from the sofa on any screen and DPI.</summary>

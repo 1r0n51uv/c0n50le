@@ -73,11 +73,12 @@ public sealed partial class MainWindow
         DetailsSubtitle.Text = Strings.Get("GameDetails");
         DetailsCard.Children.Clear();
         DetailsCard.Children.Add(CardContent(title, art, _session?.Game.Id == game.Id));
-        // Beside the card the facts go one per line, without the dots.
+        // Beside the card: the rating square, then the facts wrapping under it.
         DetailsInfo.Children.Clear();
-        foreach (var fact in GameBadges.For(game, art, SourceLabel(game.Source), 22).Where(item => item is not TextBlock { Text: "·" }))
+        foreach (var fact in GameBadges.For(game, art, SourceLabel(game.Source), 24, 520))
         {
             fact.HorizontalAlignment = HorizontalAlignment.Left;
+            if (fact is TextBlock text) text.MaxLines = 4;
             DetailsInfo.Children.Add(fact);
         }
         DetailsBackgrounds.Children.Clear();
@@ -106,19 +107,41 @@ public sealed partial class MainWindow
         DetailRow("CardImage", "CardImageBody",
             File.Exists(art.CardImage) ? Strings.Get("CardImageChosen") : Strings.Get("CardImageAuto"), matched,
             () => PickArtAsync(game, ArtUse.Card));
+        DetailRow("LogoRow", "LogoRowBody",
+            File.Exists(art.LogoImage) ? Strings.Get("CardImageChosen") : art.LogoToShow(File.Exists) is not null ? Strings.Get("CardImageAuto")
+            : Strings.Get("NotSet"), matched, () => PickArtAsync(game, ArtUse.Logo));
         var backgrounds = art.Backgrounds.Count(File.Exists);
         DetailRow("Backgrounds", "BackgroundsBody",
             backgrounds > 0 ? Strings.Format("BackgroundsCount", backgrounds)
             : art.BackgroundsToShow(File.Exists).Count > 0 ? Strings.Get("BackgroundsCatalog") : Strings.Get("NotSet"), matched,
             () => PickArtAsync(game, ArtUse.Background));
         var description = art.Descriptions.GetValueOrDefault(Strings.Language + "|" + DescriptionTitle(game, art));
+        var wikipedia = art.DescriptionSource == DescriptionSources.Wikipedia;
         DetailRow("DescriptionRow", "DescriptionRowBody",
-            description is { Text.Length: > 0 } ? description.SourceName.Split(' ')[0] : Strings.Get("DescriptionNone"), matched,
-            () => RefreshDescriptionNowAsync(game, quiet: false));
+            description is { Text.Length: > 0 } ? description.SourceName.Split(' ')[0] : Strings.Get("DescriptionNone"), matched, () =>
+            {
+                // Which text to use for this game, or fetch it again.
+                void Use(string source)
+                {
+                    art.DescriptionSource = source;
+                    art.Descriptions.Remove(Strings.Language + "|" + DescriptionTitle(game, art));
+                    Save();
+                    _descriptionRequests.Clear();
+                    _ = RefreshDescriptionNowAsync(game, quiet: false);
+                }
+                OpenMenu(
+                [
+                    new(Strings.Get("DescriptionLaunchBox"), Checked: !wikipedia, Action: () => { Use(DescriptionSources.Automatic); return Task.CompletedTask; }),
+                    new(Strings.Get("DescriptionWikipedia"), Checked: wikipedia, Action: () => { Use(DescriptionSources.Wikipedia); return Task.CompletedTask; }),
+                    MenuEntry.Divider,
+                    new(Strings.Get("DescriptionRefresh"), "\uE72C", Action: () => RefreshDescriptionNowAsync(game, quiet: false))
+                ], FocusedButton(), FocusedButton());
+                return Task.CompletedTask;
+            });
         DetailRow("EditGame", "EditGameBody", "", true, async () =>
         {
             await EditGameAsync(game);
-            RenderDetails(4);
+            RenderDetails(5);
         });
         if (focusRow is { } row && row >= 0 && row < DetailsRows.Children.Count && DetailsRows.Children[row] is Button button)
             DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => button.Focus(FocusState.Keyboard));
@@ -158,7 +181,8 @@ public sealed partial class MainWindow
         _descriptionRequests.Add(game.Id + "|" + key);
         Save();
         if (!quiet) ShowToast(Strings.Get("DescriptionUpdated"));
-        if (_detailsGame?.Id == game.Id) RenderDetails(3);
+        if (SelectedGame?.Id == game.Id && !_heroShowsAction) RefreshDescription(game);
+        if (_detailsGame?.Id == game.Id) RenderDetails(4);
     }
 
     // ───────── Choosing pictures ─────────
@@ -181,6 +205,7 @@ public sealed partial class MainWindow
     {
         var art = _prefs.ArtFor(game);
         var multi = use == ArtUse.Background;
+        var logo = use == ArtUse.Logo;
         var choices = new List<ArtChoice>();
         var panel = new StackPanel { Spacing = 14 };
         var status = new TextBlock
@@ -232,6 +257,8 @@ public sealed partial class MainWindow
 
         if (use == ArtUse.Card && File.Exists(art.CardImage))
             Add(new ArtChoice { File = art.CardImage, Label = Strings.Get("CurrentImage"), Selected = true });
+        if (logo && art.LogoToShow(File.Exists) is { } currentLogo)
+            Add(new ArtChoice { File = currentLogo, Label = Strings.Get("CurrentImage"), Selected = true });
         if (use == ArtUse.Background)
         {
             var current = art.Backgrounds.Where(File.Exists).ToList();
@@ -260,28 +287,30 @@ public sealed partial class MainWindow
             if (cancellation.IsCancellationRequested) return;
             foreach (var candidate in ArtSources.For(use, found).Take(30))
                 Add(new ArtChoice { Online = candidate, Label = $"{candidate.Source} · {candidate.Label}" });
-            status.Text = choices.Any(choice => choice.Online is not null) ? Strings.Get(multi ? "PickBackgroundsBody" : "PickCardImageBody")
+            status.Text = choices.Any(choice => choice.Online is not null) ? Strings.Get(multi ? "PickBackgroundsBody" : logo ? "PickLogoBody" : "PickCardImageBody")
                 : Strings.Get("NoImages");
         }
 
         _nextAlertWidth = 900;
-        var buttons = use == ArtUse.Card
+        var buttons = !multi
             ? new[] { Strings.Get("Save"), Strings.Get("UseAutomatic"), Strings.Get("Cancel") }
             : new[] { Strings.Get("Save"), Strings.Get("Cancel") };
-        var answer = await AlertAsync(Strings.Get(multi ? "PickBackgrounds" : "PickCardImage"), "", panel, buttons);
+        var answer = await AlertAsync(Strings.Get(multi ? "PickBackgrounds" : logo ? "PickLogo" : "PickCardImage"), "", panel, buttons);
         cancellation.Cancel();
-        if (use == ArtUse.Card && answer == 1)
+        if (!multi && answer == 1)
         {
-            art.CardImage = "";
+            if (logo) art.LogoImage = "";
+            else art.CardImage = "";
             Save();
             UpdateCards();
-            RenderDetails(1);
+            if (!_heroShowsAction) RefreshHero(fetch: false);
+            RenderDetails(logo ? 2 : 1);
             return;
         }
         if (answer != 0) return;
 
         ShowToast(Strings.Get("SavingImages"));
-        var kind = use == ArtUse.Card ? "cardimage" : "backdrop";
+        var kind = use switch { ArtUse.Card => "cardimage", ArtUse.Logo => "logoimage", _ => "backdrop" };
         var saved = new List<string>();
         try
         {
@@ -306,17 +335,21 @@ public sealed partial class MainWindow
             return;
         }
         if (use == ArtUse.Card) art.CardImage = saved.FirstOrDefault() ?? art.CardImage;
+        else if (logo) art.LogoImage = saved.FirstOrDefault() ?? art.LogoImage;
         else art.Backgrounds = saved;
         Save();
         ShowToast(Strings.Get("ImagesSaved"));
         UpdateCards();
-        RenderDetails(use == ArtUse.Card ? 1 : 2);
+        if (!_heroShowsAction) RefreshHero(fetch: false);
+        RenderDetails(use switch { ArtUse.Card => 1, ArtUse.Logo => 2, _ => 3 });
     }
 
     /// <summary>A thumbnail: grows a little when focused, shows a tick and a ring when chosen.</summary>
     private Button ArtTile(ArtChoice choice, Action toggle)
     {
-        var picture = new Image { Stretch = Stretch.UniformToFill };
+        // Logos are transparent titles: whole, centred, on the dark tile.
+        var whole = choice.Label.Contains("Logo", StringComparison.OrdinalIgnoreCase) || (choice.File?.Contains("-logo", StringComparison.OrdinalIgnoreCase) ?? false);
+        var picture = new Image { Stretch = whole ? Stretch.Uniform : Stretch.UniformToFill, Margin = whole ? new Thickness(22, 16, 22, 40) : new Thickness(0) };
         var bitmap = new BitmapImage { DecodePixelWidth = 360 };
         if (choice.File is { } file && File.Exists(file)) bitmap.UriSource = new Uri(file);
         else if (choice.Online is { } online) bitmap.UriSource = online.Url;

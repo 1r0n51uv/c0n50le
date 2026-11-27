@@ -10,36 +10,48 @@ using Windows.UI;
 namespace C0n50le.Ui;
 
 /// <summary>
-/// A game's facts under its title: the age rating as a PEGI-coloured square (green, amber, red), then where it comes from,
-/// genre, year, platform, developer and players as plain secondary text with an icon each, dot-separated.
+/// A game's facts under its title, as plain secondary text dot-separated like before (wrapping when long), led by the
+/// age rating as a PEGI-coloured square (green, amber, red).
 /// </summary>
 public static class GameBadges
 {
-    /// <summary>The badges for a game; <paramref name="source"/> is the label of where it was found.</summary>
-    public static List<FrameworkElement> For(Game game, Artwork? art, string source, double size = 22)
+    /// <summary>The rating square (when rated) and the facts line, for a panel laid out horizontally or vertically.</summary>
+    public static List<FrameworkElement> For(Game game, Artwork? art, string source, double size, double maxWidth)
     {
         var info = art?.IsMatched == true ? art.Info ?? new GameInfo() : new GameInfo();
-        var badges = new List<FrameworkElement>();
-        if (Pegi(info.Rating) is { } pegi) badges.Add(Rating(pegi, size));
-        badges.Add(Chip(SourceGlyph(game.Source), source, size));
-        if (info.Genre.Length > 0) badges.Add(Chip("", info.Genre, size, GenreColor(info.Genre)));
-        if (info.Year.Length > 0) badges.Add(Chip("", info.Year, size));
-        if (info.Platform.Length > 0) badges.Add(Chip(PlatformGlyph(info.Platform), ShortPlatform(info.Platform), size));
-        if (info.Developer.Length > 0) badges.Add(Chip("", FirstName(info.Developer), size));
-        if (int.TryParse(info.Players, out var players) && players > 0)
-            badges.Add(Chip("", players == 1 ? Strings.Get("OnePlayer") : Strings.Format("UpToPlayers", players), size));
-        // A game matched before the badges existed still has its plain facts: show those as chips.
-        if (info.IsEmpty && art?.IsMatched == true)
-            badges.AddRange(art.Details.Where(detail => detail.Length > 0).Select(detail => Chip("", detail, size)));
-        // The rating square leads; the facts follow on one line, dot-separated as before.
-        var line = new List<FrameworkElement>();
-        foreach (var badge in badges)
+        var result = new List<FrameworkElement>();
+        if (Pegi(info.Rating) is { } pegi) result.Add(Rating(pegi, size));
+        var facts = Facts(game, art, source);
+        if (facts.Length > 0)
+            result.Add(new TextBlock
+            {
+                Text = facts, FontSize = size, FontWeight = FontWeights.Medium, TextWrapping = TextWrapping.Wrap, MaxLines = 2,
+                TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center,
+                MaxWidth = maxWidth - (result.Count > 0 ? size * 2.6 : 0), Foreground = ThemeManager.Brush("TextSecondaryBrush")
+            });
+        return result;
+    }
+
+    /// <summary>Where it comes from, genre, year, platform, developer and players, dot-separated.</summary>
+    public static string Facts(Game game, Artwork? art, string source)
+    {
+        var parts = new List<string> { source };
+        var info = art?.IsMatched == true ? art.Info ?? new GameInfo() : new GameInfo();
+        if (info.IsEmpty)
         {
-            if (badge is Border) { line.Add(badge); continue; }
-            if (line.Count > 0 && line[^1] is not Border) line.Add(Dot(size));
-            line.Add(badge);
+            // A game matched before the facts were kept still has its plain details.
+            if (art?.IsMatched == true) parts.AddRange(art.Details.Where(detail => detail.Length > 0));
         }
-        return line;
+        else
+        {
+            parts.Add(info.Genre);
+            parts.Add(info.Year);
+            parts.Add(info.Platform.Length > 0 ? ShortPlatform(info.Platform) : "");
+            parts.Add(info.Developer);
+            if (int.TryParse(info.Players, out var players) && players > 0)
+                parts.Add(players == 1 ? Strings.Get("OnePlayer") : Strings.Format("UpToPlayers", players));
+        }
+        return string.Join("  ·  ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
     }
 
     /// <summary>The PEGI age for an ESRB rating (the system used in Europe), or null when unrated.</summary>
@@ -69,8 +81,8 @@ public static class GameBadges
     {
         var square = new Border
         {
-            Width = size * 1.9, Height = size * 1.9, CornerRadius = new CornerRadius(size * 0.35),
-            Background = new SolidColorBrush(PegiColor(age)), VerticalAlignment = VerticalAlignment.Center,
+            Width = size * 1.9, Height = size * 1.9, CornerRadius = new CornerRadius(size * 0.35), Margin = new Thickness(0, 0, size * 0.6, 0),
+            Background = new SolidColorBrush(PegiColor(age)), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left,
             Child = new StackPanel
             {
                 VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Spacing = -2,
@@ -93,68 +105,12 @@ public static class GameBadges
         return square;
     }
 
-    /// <summary>
-    /// One fact as before, plain secondary text, now with its icon in front; a dot separates it from the previous one
-    /// (the caller adds the separators).
-    /// </summary>
-    private static FrameworkElement Chip(string glyph, string text, double size, Color? tint = null)
-    {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = size * 0.35, VerticalAlignment = VerticalAlignment.Center };
-        if (glyph.Length > 0)
-            row.Children.Add(new FontIcon
-            {
-                Glyph = glyph, FontSize = size * 0.8, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, size * 0.08, 0, 0),
-                Foreground = ThemeManager.Brush("TextSecondaryBrush")
-            });
-        row.Children.Add(new TextBlock
-        {
-            Text = text, FontSize = size, FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = size * 16, Foreground = ThemeManager.Brush("TextSecondaryBrush")
-        });
-        return row;
-    }
-
-    private static FrameworkElement Dot(double size) => new TextBlock
-    {
-        Text = "·", FontSize = size, FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center,
-        Foreground = ThemeManager.Brush("TextSecondaryBrush")
-    };
-    /// <summary>Each genre keeps one colour, from a small palette that reads on both themes.</summary>
-    public static Color GenreColor(string genre)
-    {
-        Color[] palette =
-        [
-            Color.FromArgb(0xFF, 0x5E, 0x9E, 0xFF), Color.FromArgb(0xFF, 0xB3, 0x7F, 0xEB), Color.FromArgb(0xFF, 0x3D, 0xC2, 0x8D),
-            Color.FromArgb(0xFF, 0xFF, 0x8A, 0x4C), Color.FromArgb(0xFF, 0xFF, 0x5C, 0x8A), Color.FromArgb(0xFF, 0x2E, 0xBF, 0xD1),
-            Color.FromArgb(0xFF, 0xE6, 0xB8, 0x00)
-        ];
-        var hash = 0;
-        foreach (var letter in genre.ToLowerInvariant()) hash = unchecked(hash * 31 + letter);
-        return palette[(hash & 0x7FFFFFFF) % palette.Length];
-    }
-
-    private static string SourceGlyph(string source) => source switch
-    {
-        GameSource.Steam or GameSource.Epic => "",
-        GameSource.Folder => "",
-        GameSource.Preset => "",
-        _ => ""
-    };
-
-    private static string PlatformGlyph(string platform) =>
-        platform.Contains("Windows", StringComparison.OrdinalIgnoreCase) ? "" : "";
-
-    /// <summary>"Sony Playstation 5" → "PlayStation 5", "Microsoft Xbox Series X/S" → "Xbox Series X/S".</summary>
+    /// <summary>"Sony Playstation 5" → "PlayStation 5", "Microsoft Xbox Series X/S" → "Xbox Series X/S", "Windows" → "PC".</summary>
     public static string ShortPlatform(string platform)
     {
         var name = platform.Trim();
-        foreach (var maker in new[] { "Sony ", "Microsoft ", "Nintendo " })
-            if (name.StartsWith(maker, StringComparison.OrdinalIgnoreCase) && !name.Equals("Nintendo Switch", StringComparison.OrdinalIgnoreCase)
-                && !name.StartsWith("Nintendo Switch", StringComparison.OrdinalIgnoreCase))
-                name = name[maker.Length..];
+        foreach (var maker in new[] { "Sony ", "Microsoft " })
+            if (name.StartsWith(maker, StringComparison.OrdinalIgnoreCase)) name = name[maker.Length..];
         return name.Replace("Playstation", "PlayStation", StringComparison.Ordinal).Replace("Windows", "PC", StringComparison.Ordinal);
     }
-
-    /// <summary>The first of several developers ("Game Freak Omega Force…" keeps its first studio when LaunchBox separates them).</summary>
-    private static string FirstName(string names) => names.Split([',', ';', '/'], StringSplitOptions.RemoveEmptyEntries)[0].Trim();
 }

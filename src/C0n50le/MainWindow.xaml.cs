@@ -71,6 +71,7 @@ public sealed partial class MainWindow : Window
         ThemeManager.Use(_prefs.Theme, (Core.Theming.GlassDepth)_prefs.Glass);
         Root.RequestedTheme = ThemeManager.ElementTheme;
         Sounds.Enabled = _prefs.Sounds;
+        ApplyHeroScale();
 
         _clockTimer = DispatcherQueue.CreateTimer();
         _clockTimer.Interval = TimeSpan.FromSeconds(5);

@@ -254,6 +254,13 @@ public sealed partial class MainWindow
             _prefs.UiScale = UiScale.Choices[index];
             UpdateStage();
         });
+        var heroSizes = HeroSize.Choices.Select(value => $"{value * 100:0}%").ToArray();
+        var heroIndex = HeroSize.Choices.ToList().IndexOf(HeroSize.Nearest(_prefs.HeroScale));
+        Choice("HeroSize", "HeroSizeBody", heroSizes[Math.Max(0, heroIndex)], heroSizes, heroIndex, index =>
+        {
+            _prefs.HeroScale = HeroSize.Choices[index];
+            ApplyHeroScale();
+        });
     }
 
     private void ControlRows()

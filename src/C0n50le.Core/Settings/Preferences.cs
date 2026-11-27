@@ -28,6 +28,8 @@ public sealed class Preferences
     // Screen
     public string Screen { get; set; } = "";
     public double UiScale { get; set; } = 1.0;
+    /// <summary>The size of the game's logo and description above the cards, as a factor.</summary>
+    public double HeroScale { get; set; } = 1.0;
 
     // Controls
     public string KeyboardShortcut { get; set; } = "F11";
@@ -122,6 +124,7 @@ public sealed class Preferences
             game.Source = GameSource.Manual;
         }
         UiScale = Theming.UiScale.Clamp(UiScale);
+        HeroScale = Theming.HeroSize.Nearest(HeroScale);
         Theme = Theming.ThemeCatalog.Normalize(Theme);
         Glass = (int)Theming.ThemeCatalog.NormalizeGlass(Glass);
         if (!Input.ShortcutChoices.IsKnownKeyboard(KeyboardShortcut)) KeyboardShortcut = "F11";
@@ -155,7 +158,7 @@ public sealed class Preferences
     public int PruneArt(string artFolder)
     {
         if (!Directory.Exists(artFolder)) return 0;
-        var used = Art.Values.SelectMany(art => new[] { art.Card, art.Background, art.Logo, art.Banner, art.CardImage }
+        var used = Art.Values.SelectMany(art => new[] { art.Card, art.Background, art.Logo, art.Banner, art.CardImage, art.LogoImage }
                 .Concat(art.Backgrounds ?? []).Concat(art.MoreBackgrounds ?? []))
             .Where(path => path.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var removed = 0;

@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 namespace C0n50le.Core.Catalog;
 
 /// <summary>What a picture is for: the card in the dock, or one of the backgrounds behind the home.</summary>
-public enum ArtUse { Card, Background }
+public enum ArtUse { Card, Background, Logo }
 
 /// <summary>A picture offered in a game's detail page, from a catalog or a store, before it is downloaded.</summary>
 public sealed record ArtCandidate(Uri Url, string Source, string Label, int Width, int Height)
@@ -64,7 +64,8 @@ public static class ArtSources
             new(new Uri(cdn + "library_hero.jpg"), "Steam", "Library Hero", 3840, 1240),
             new(new Uri(cdn + "header.jpg"), "Steam", "Header", 920, 430),
             new(new Uri(cdn + "capsule_616x353.jpg"), "Steam", "Capsule", 616, 353),
-            new(new Uri(cdn + "library_600x900.jpg"), "Steam", "Library Capsule", 600, 900)
+            new(new Uri(cdn + "library_600x900.jpg"), "Steam", "Library Capsule", 600, 900),
+            new(new Uri(cdn + "logo.png"), "Steam", "Library Logo", 1280, 720)
         };
         if (string.IsNullOrWhiteSpace(appDetails)) return result;
         try
@@ -87,6 +88,12 @@ public static class ArtSources
     /// </summary>
     public static List<ArtCandidate> For(ArtUse use, IEnumerable<ArtCandidate> candidates) => use switch
     {
+        // A logo is a transparent title: LaunchBox's clear logos (worldwide first), then Steam's library logo.
+        ArtUse.Logo => candidates.Where(IsLogo)
+            .OrderBy(candidate => candidate.Source == "Steam" ? 1 : 0)
+            .ThenByDescending(candidate => candidate.Label.Contains("World", StringComparison.OrdinalIgnoreCase)
+                || candidate.Label.Contains("North America", StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(candidate => candidate.Width).ToList(),
         ArtUse.Card => candidates
             .Where(candidate => candidate.Aspect >= 1.2 && candidate.Width >= 400 && !IsLogo(candidate))
             .OrderBy(candidate => CardRank(candidate)).ThenByDescending(candidate => candidate.Width).ToList(),
